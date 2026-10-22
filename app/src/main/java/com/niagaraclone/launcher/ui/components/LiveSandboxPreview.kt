@@ -314,11 +314,19 @@ private fun MockAppRow(
                             .clip(miniIconShape)
                             .background(
                                 when (settings.iconStyle) {
-                                    IconStyle.THEMED_MONOCHROME -> themeAccent.copy(alpha = 0.28f)
-                                    IconStyle.THEMED_DUOTONE -> themeAccent.copy(alpha = 0.48f)
+                                    IconStyle.UNIFIED_THEMED -> themeAccent.copy(alpha = 0.22f)
+                                    IconStyle.THEMED_MONOCHROME -> themeAccent.copy(alpha = 0.16f)
+                                    IconStyle.THEMED_DUOTONE -> themeAccent.copy(alpha = 0.38f)
                                     IconStyle.MINIMAL_DOTS -> Color.Transparent
                                     IconStyle.ORIGINAL -> Color(0x33FFFFFF)
                                 }
+                            )
+                            .then(
+                                if (settings.iconStyle == IconStyle.UNIFIED_THEMED) {
+                                    Modifier.border(0.75.dp, themeAccentLight.copy(alpha = 0.35f), miniIconShape)
+                                } else if (settings.iconStyle == IconStyle.THEMED_DUOTONE) {
+                                    Modifier.border(0.75.dp, Color.White.copy(alpha = 0.40f), miniIconShape)
+                                } else Modifier
                             )
                     } else Modifier
                 ),
@@ -335,7 +343,7 @@ private fun MockAppRow(
                     imageVector = icon,
                     contentDescription = null,
                     tint = when (settings.iconStyle) {
-                        IconStyle.THEMED_MONOCHROME -> themeAccentLight
+                        IconStyle.UNIFIED_THEMED, IconStyle.THEMED_MONOCHROME -> themeAccentLight
                         IconStyle.THEMED_DUOTONE -> Color.White
                         IconStyle.ORIGINAL -> themeAccentLight
                         IconStyle.MINIMAL_DOTS -> themeAccentLight

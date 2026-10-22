@@ -631,7 +631,7 @@ fun LauncherHomeScreen(
                 onDismissRequest = { viewModel.setSettingsSheetActive(false) },
                 onApplySettings = { updated ->
                     viewModel.updateSettings { updated }
-                    viewModel.setSettingsSheetActive(false)
+                    // Keep user in settings to allow seamless multi-tab tuning
                 },
                 onResetDefaults = { viewModel.resetSettingsToDefault() },
                 onRequestDefaultLauncher = onRequestDefaultLauncher,

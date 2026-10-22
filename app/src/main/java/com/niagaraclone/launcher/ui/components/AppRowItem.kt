@@ -131,8 +131,9 @@ fun ThemedAppIcon(
             }
         }
 
-        IconStyle.THEMED_MONOCHROME, IconStyle.THEMED_DUOTONE -> {
+        IconStyle.UNIFIED_THEMED, IconStyle.THEMED_MONOCHROME, IconStyle.THEMED_DUOTONE -> {
             val isDuotone = settings.iconStyle == IconStyle.THEMED_DUOTONE
+            val isUnified = settings.iconStyle == IconStyle.UNIFIED_THEMED
             val containerShape = when (settings.iconShape) {
                 IconShape.CIRCLE -> CircleShape
                 IconShape.SQUIRCLE -> RoundedCornerShape(30)
@@ -142,12 +143,20 @@ fun ThemedAppIcon(
             val containerModifier = if (settings.iconShape != IconShape.BARE) {
                 modifier
                     .background(
-                        color = themeAccent.copy(alpha = if (isDuotone) 0.28f else 0.16f),
+                        color = when {
+                            isDuotone -> themeAccent.copy(alpha = 0.38f)
+                            isUnified -> themeAccent.copy(alpha = 0.22f)
+                            else -> themeAccent.copy(alpha = 0.16f)
+                        },
                         shape = containerShape
                     )
                     .border(
                         width = 1.dp,
-                        color = themeAccentLight.copy(alpha = 0.35f),
+                        color = when {
+                            isDuotone -> Color.White.copy(alpha = 0.45f)
+                            isUnified -> themeAccentLight.copy(alpha = 0.35f)
+                            else -> themeAccentLight.copy(alpha = 0.20f)
+                        },
                         shape = containerShape
                     )
                     .clip(containerShape)
@@ -161,6 +170,7 @@ fun ThemedAppIcon(
                     drawIntoCanvas { canvas ->
                         val width = size.width.roundToInt()
                         val height = size.height.roundToInt()
+                        val glyphColorInt = if (isDuotone) 0xFFFFFFFF.toInt() else settings.activeAccentLightHex.toInt()
 
                         // Android 13+ (API 33+) native monochrome layer if available
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
@@ -170,14 +180,24 @@ fun ThemedAppIcon(
                             val mono = drawable.monochrome!!.mutate()
                             mono.setBounds(0, 0, width, height)
                             mono.colorFilter = PorterDuffColorFilter(
-                                settings.activeAccentLightHex.toInt(),
+                                glyphColorInt,
                                 PorterDuff.Mode.SRC_IN
                             )
                             mono.draw(canvas.nativeCanvas)
                             mono.colorFilter = null
+                        } else if (drawable is AdaptiveIconDrawable) {
+                            // Extract ONLY the foreground glyph and discard the third-party background!
+                            val fg = (drawable.foreground ?: drawable).mutate()
+                            fg.setBounds(0, 0, width, height)
+                            fg.colorFilter = PorterDuffColorFilter(
+                                glyphColorInt,
+                                PorterDuff.Mode.SRC_IN
+                            )
+                            fg.draw(canvas.nativeCanvas)
+                            fg.colorFilter = null
                         } else {
-                            // High-quality desaturation + theme accent multiplier
-                            val tint = settings.activeAccentLightHex
+                            // High-quality desaturation + theme accent multiplier for legacy Drawables
+                            val tint = if (isDuotone) 0xFFE0E0E0L else settings.activeAccentLightHex
                             val r = ((tint shr 16) and 0xFF) / 255f
                             val g = ((tint shr 8) and 0xFF) / 255f
                             val b = (tint and 0xFF) / 255f
@@ -190,10 +210,11 @@ fun ThemedAppIcon(
                                     0f, 0f, 0f, 1f, 0f
                                 )
                             )
-                            drawable.setBounds(0, 0, width, height)
-                            drawable.colorFilter = ColorMatrixColorFilter(matrix)
-                            drawable.draw(canvas.nativeCanvas)
-                            drawable.colorFilter = null
+                            val icon = drawable.mutate()
+                            icon.setBounds(0, 0, width, height)
+                            icon.colorFilter = ColorMatrixColorFilter(matrix)
+                            icon.draw(canvas.nativeCanvas)
+                            icon.colorFilter = null
                         }
                     }
                 }

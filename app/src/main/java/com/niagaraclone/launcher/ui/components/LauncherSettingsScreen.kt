@@ -77,6 +77,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.niagaraclone.launcher.data.AssetWallpaperLoader
@@ -93,6 +94,7 @@ import com.niagaraclone.launcher.ui.theme.TextMuted
 import com.niagaraclone.launcher.ui.theme.TextPrimary
 import com.niagaraclone.launcher.ui.theme.TextSecondary
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
@@ -123,7 +125,22 @@ fun LauncherSettingsScreen(
     val coroutineScope = rememberCoroutineScope()
 
     var previewSettings by remember(settings) { mutableStateOf(settings) }
-    val hasUnsavedChanges = previewSettings != settings
+    var baselineSettings by remember(settings) { mutableStateOf(settings) }
+    val hasUnsavedChanges = previewSettings != baselineSettings
+    var showAppliedBanner by remember { mutableStateOf(false) }
+
+    LaunchedEffect(showAppliedBanner) {
+        if (showAppliedBanner) {
+            delay(2500)
+            showAppliedBanner = false
+        }
+    }
+
+    val applyChanges: () -> Unit = {
+        onApplySettings(previewSettings)
+        baselineSettings = previewSettings
+        showAppliedBanner = true
+    }
 
     val previewAccent = Color(previewSettings.activeAccentHex)
     val previewAccentLight = Color(previewSettings.activeAccentLightHex)
@@ -222,9 +239,7 @@ fun LauncherSettingsScreen(
 
                 // Apply Button in header
                 Button(
-                    onClick = {
-                        onApplySettings(previewSettings)
-                    },
+                    onClick = applyChanges,
                     enabled = hasUnsavedChanges,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = previewAccent,
@@ -338,111 +353,169 @@ fun LauncherSettingsScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             WallpaperTheme.values().forEach { theme ->
                                 val isSelected = previewSettings.wallpaperTheme == theme
                                 Surface(
                                     shape = RoundedCornerShape(14.dp),
-                                    color = if (isSelected) Color(theme.accentHex).copy(alpha = 0.35f) else Color(0x22FFFFFF),
-                                    border = if (isSelected) androidx.compose.foundation.BorderStroke(2.dp, Color(theme.accentLightHex)) else null,
-                                    modifier = Modifier.clickable {
-                                        previewSettings = previewSettings.copy(wallpaperTheme = theme)
-                                    }
+                                    color = if (isSelected) Color(theme.accentHex).copy(alpha = 0.28f) else Color(0x1AFFFFFF),
+                                    border = if (isSelected) androidx.compose.foundation.BorderStroke(2.dp, Color(theme.accentLightHex)) else androidx.compose.foundation.BorderStroke(1.dp, Color(0x18FFFFFF)),
+                                    modifier = Modifier
+                                        .width(140.dp)
+                                        .clickable {
+                                            previewSettings = previewSettings.copy(wallpaperTheme = theme)
+                                        }
                                 ) {
                                     Column(
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                        modifier = Modifier.padding(8.dp)
                                     ) {
-                                        if (theme == WallpaperTheme.CUSTOM_PHOTO) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(width = 44.dp, height = 54.dp)
-                                                    .clip(RoundedCornerShape(8.dp))
-                                                    .background(Color(0x33FFFFFF)),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Outlined.Image,
-                                                    contentDescription = null,
-                                                    tint = Color(theme.accentHex),
-                                                    modifier = Modifier.size(20.dp)
-                                                )
-                                            }
-                                        } else if (theme == WallpaperTheme.SYSTEM_WALLPAPER) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(width = 44.dp, height = 54.dp)
-                                                    .clip(RoundedCornerShape(8.dp))
-                                                    .background(Color(theme.accentHex)),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Outlined.Home,
-                                                    contentDescription = null,
-                                                    tint = Color.White,
-                                                    modifier = Modifier.size(20.dp)
-                                                )
-                                            }
-                                        } else if (theme.assetFileName != null) {
-                                            val thumb = remember(theme.assetFileName) {
-                                                AssetWallpaperLoader.loadThumbnail(context, theme.assetFileName, 88, 108)
-                                            }
-                                            if (thumb != null) {
+                                        // 3:4 Portrait Thumbnail Box
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(160.dp)
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(Color(0xFF15171E))
+                                        ) {
+                                            if (theme == WallpaperTheme.CUSTOM_PHOTO) {
+                                                if (previewBitmap != null) {
+                                                    Image(
+                                                        bitmap = previewBitmap!!.asImageBitmap(),
+                                                        contentDescription = null,
+                                                        contentScale = ContentScale.Crop,
+                                                        modifier = Modifier.fillMaxSize()
+                                                    )
+                                                } else {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .fillMaxSize()
+                                                            .background(Color(0x33FFFFFF)),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Outlined.Image,
+                                                            contentDescription = null,
+                                                            tint = Color(theme.accentHex),
+                                                            modifier = Modifier.size(32.dp)
+                                                        )
+                                                    }
+                                                }
+                                            } else if (theme == WallpaperTheme.SYSTEM_WALLPAPER) {
                                                 Box(
                                                     modifier = Modifier
-                                                        .size(width = 44.dp, height = 54.dp)
-                                                        .clip(RoundedCornerShape(8.dp))
-                                                        .border(1.dp, Color(theme.accentHex).copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+                                                        .fillMaxSize()
+                                                        .background(Color(0xFF182234)),
+                                                    contentAlignment = Alignment.Center
                                                 ) {
+                                                    Column(
+                                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Outlined.Home,
+                                                            contentDescription = null,
+                                                            tint = Color(theme.accentHex),
+                                                            modifier = Modifier.size(32.dp)
+                                                        )
+                                                        Text(
+                                                            text = "Live",
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = Color(theme.accentLightHex)
+                                                        )
+                                                    }
+                                                }
+                                            } else if (theme.assetFileName != null) {
+                                                val thumb = remember(theme.assetFileName) {
+                                                    AssetWallpaperLoader.loadThumbnail(context, theme.assetFileName, 280, 360)
+                                                }
+                                                if (thumb != null) {
                                                     Image(
                                                         bitmap = thumb.asImageBitmap(),
                                                         contentDescription = theme.label,
                                                         contentScale = ContentScale.Crop,
                                                         modifier = Modifier.fillMaxSize()
                                                     )
+                                                } else {
                                                     Box(
                                                         modifier = Modifier
-                                                            .align(Alignment.BottomEnd)
-                                                            .padding(3.dp)
-                                                            .size(8.dp)
-                                                            .background(Color(theme.accentHex), CircleShape)
+                                                            .fillMaxSize()
+                                                            .background(
+                                                                Brush.verticalGradient(
+                                                                    listOf(Color(theme.topColorHex), Color(theme.bottomColorHex))
+                                                                )
+                                                            )
                                                     )
                                                 }
                                             } else {
                                                 Box(
                                                     modifier = Modifier
-                                                        .size(width = 44.dp, height = 54.dp)
-                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .fillMaxSize()
                                                         .background(
                                                             Brush.verticalGradient(
                                                                 listOf(Color(theme.topColorHex), Color(theme.bottomColorHex))
                                                             )
                                                         )
-                                                        .border(1.dp, Color(theme.accentHex), RoundedCornerShape(8.dp))
                                                 )
                                             }
-                                        } else {
+
+                                            // Accent indicator chip in top-right corner
                                             Box(
                                                 modifier = Modifier
-                                                    .size(width = 44.dp, height = 54.dp)
-                                                    .clip(RoundedCornerShape(8.dp))
-                                                    .background(
-                                                        Brush.verticalGradient(
-                                                            listOf(Color(theme.topColorHex), Color(theme.bottomColorHex))
-                                                        )
-                                                    )
-                                                    .border(1.dp, Color(theme.accentHex), RoundedCornerShape(8.dp))
+                                                    .align(Alignment.TopEnd)
+                                                    .padding(6.dp)
+                                                    .size(14.dp)
+                                                    .background(Color(theme.accentHex), CircleShape)
+                                                    .border(1.5.dp, Color.White.copy(alpha = 0.8f), CircleShape)
                                             )
+
+                                            // Selection check badge in bottom-right corner
+                                            if (isSelected) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .align(Alignment.BottomEnd)
+                                                        .padding(6.dp)
+                                                        .size(20.dp)
+                                                        .background(Color(theme.accentHex), CircleShape),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Check,
+                                                        contentDescription = null,
+                                                        tint = Color.White,
+                                                        modifier = Modifier.size(14.dp)
+                                                    )
+                                                }
+                                            }
                                         }
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        // Title
                                         Text(
                                             text = theme.label,
-                                            style = MaterialTheme.typography.bodySmall.copy(
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                                fontSize = 11.sp
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                                fontSize = 12.sp
                                             ),
-                                            color = if (isSelected) TextPrimary else TextSecondary
+                                            color = if (isSelected) TextPrimary else TextSecondary,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+
+                                        Spacer(modifier = Modifier.height(2.dp))
+
+                                        // Description
+                                        Text(
+                                            text = theme.description,
+                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                fontSize = 10.sp,
+                                                lineHeight = 13.sp
+                                            ),
+                                            color = TextMuted,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                     }
                                 }
@@ -930,9 +1003,7 @@ fun LauncherSettingsScreen(
                 shadowElevation = 12.dp,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable {
-                        onApplySettings(previewSettings)
-                    }
+                    .clickable(onClick = applyChanges)
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp),
@@ -953,6 +1024,44 @@ fun LauncherSettingsScreen(
                             fontSize = 15.sp
                         ),
                         color = Color.White
+                    )
+                }
+            }
+        }
+
+        // Inline Confirmation Banner when changes are applied
+        AnimatedVisibility(
+            visible = showAppliedBanner,
+            enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 64.dp)
+        ) {
+            Surface(
+                shape = CircleShape,
+                color = Color(0xFA1E222A),
+                border = androidx.compose.foundation.BorderStroke(1.dp, previewAccentLight),
+                shadowElevation = 12.dp
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = null,
+                        tint = previewAccentLight,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = "✓ Changes applied to home screen",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        ),
+                        color = TextPrimary
                     )
                 }
             }

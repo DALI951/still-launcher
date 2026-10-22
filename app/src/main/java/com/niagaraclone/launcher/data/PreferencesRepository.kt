@@ -130,8 +130,8 @@ class PreferencesRepository(private val context: Context) {
         }
         .map { prefs ->
             val iconSize = prefs[PreferencesKeys.SETTING_ICON_SIZE] ?: 26
-            val iconStyleName = prefs[PreferencesKeys.SETTING_ICON_STYLE] ?: IconStyle.THEMED_MONOCHROME.name
-            val iconStyle = try { IconStyle.valueOf(iconStyleName) } catch (e: Exception) { IconStyle.THEMED_MONOCHROME }
+            val iconStyleName = prefs[PreferencesKeys.SETTING_ICON_STYLE] ?: IconStyle.UNIFIED_THEMED.name
+            val iconStyle = try { IconStyle.valueOf(iconStyleName) } catch (e: Exception) { IconStyle.UNIFIED_THEMED }
             val iconShapeName = prefs[PreferencesKeys.SETTING_ICON_SHAPE] ?: IconShape.CIRCLE.name
             val iconShape = try { IconShape.valueOf(iconShapeName) } catch (e: Exception) { IconShape.CIRCLE }
             val themePresetName = prefs[PreferencesKeys.SETTING_THEME_PRESET] ?: ThemePreset.NIAGARA_BLUE.name
