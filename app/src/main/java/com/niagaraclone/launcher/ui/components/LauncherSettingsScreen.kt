@@ -204,7 +204,8 @@ fun LauncherSettingsScreen(
             .statusBarsPadding()
             .navigationBarsPadding()
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(modifier = Modifier.fillMaxSize()) {
             // Top App Bar
             Row(
                 modifier = Modifier
@@ -1193,6 +1194,7 @@ fun LauncherSettingsScreen(
                     )
                 }
             }
+        }
         }
     }
 }
