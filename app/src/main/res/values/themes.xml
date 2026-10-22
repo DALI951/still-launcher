@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.NiagaraLauncher" parent="android:Theme.Material.NoActionBar">
+        <!-- Render real system wallpaper behind the window -->
+        <item name="android:windowShowWallpaper">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:colorBackgroundCacheHint">@null</item>
+        
+        <!-- Edge-to-edge transparent system bars -->
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        
+        <!-- Window decorations -->
+        <item name="android:windowNoTitle">true</item>
+    </style>
+</resources>

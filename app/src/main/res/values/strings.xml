@@ -1,0 +1,44 @@
+<resources>
+    <string name="app_name">Niagara Launcher</string>
+    <string name="search_hint">Search apps…</string>
+    <string name="favorites_title">Favorites</string>
+    <string name="all_apps_title">All Apps</string>
+    <string name="no_apps_found">No apps found</string>
+    <string name="add_to_favorites">Add to favorites</string>
+    <string name="remove_from_favorites">Remove from favorites</string>
+    <string name="move_up">Move up</string>
+    <string name="move_down">Move down</string>
+    <string name="hide_app">Hide app</string>
+    <string name="unhide_app">Unhide app</string>
+    <string name="app_info">App info</string>
+    <string name="uninstall">Uninstall</string>
+    <string name="manage_apps">Manage apps</string>
+    <string name="hidden_apps_title">Hidden apps</string>
+    <string name="no_hidden_apps">No hidden apps</string>
+    <string name="manage_favorites_title">Manage favorites</string>
+    <string name="alarm_prefix">Alarm at</string>
+    <string name="charging">Charging</string>
+    <string name="battery_level">%1$d%%</string>
+
+    <!-- In-App Auto-Updater & Permissions Strings -->
+    <string name="updates_and_permissions">Updates &amp; Setup</string>
+    <string name="check_for_updates">Check for updates</string>
+    <string name="checking_updates">Checking for updates…</string>
+    <string name="install_update">Install update</string>
+    <string name="download_update">Download update</string>
+    <string name="update_available">Update available</string>
+    <string name="up_to_date">You\'re on the latest version</string>
+    <string name="force_reinstall">Force re-download latest</string>
+    <string name="ready_to_install">Update downloaded and verified</string>
+    <string name="permissions_section_title">System Setup &amp; Permissions</string>
+    <string name="default_launcher_title">Default Home App</string>
+    <string name="default_launcher_desc">Set Niagara as your primary home launcher</string>
+    <string name="install_unknown_title">Install Unknown Apps</string>
+    <string name="install_unknown_desc">Allow Niagara to install seamless in-app APK updates</string>
+    <string name="notifications_title">Notifications</string>
+    <string name="notifications_desc">Receive update download notifications and alerts</string>
+    <string name="status_granted">Active</string>
+    <string name="btn_grant">Grant</string>
+    <string name="btn_set_default">Set Default</string>
+    <string name="btn_enable">Enable</string>
+</resources>
