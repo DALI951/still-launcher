@@ -23,7 +23,6 @@ import androidx.compose.material.icons.outlined.BatteryFull
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -63,7 +62,7 @@ fun AtAGlanceHeader(
             modifier = Modifier
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
-                    indication = ripple(bounded = false, radius = 40.dp)
+                    indication = null
                 ) {
                     launchClock(context)
                 }
@@ -82,7 +81,7 @@ fun AtAGlanceHeader(
             modifier = Modifier
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
-                    indication = ripple(bounded = false, radius = 32.dp)
+                    indication = null
                 ) {
                     launchCalendar(context)
                 }
