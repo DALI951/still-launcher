@@ -103,16 +103,15 @@ fun LiveVideoWallpaperView(
                         }
 
                         override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {
-                            mediaPlayer?.let { mp ->
-                                try {
-                                    val vw = mp.videoWidth
-                                    val vh = mp.videoHeight
-                                    if (vw > 0 && vh > 0) {
-                                        applyCenterCropTransform(this@apply, vw, vh, width, height)
-                                    }
-                                } catch (e: Exception) {
-                                    Log.w(TAG, "Error on size changed transform: ${e.message}")
+                            val mp = mediaPlayer ?: return
+                            try {
+                                val vw = mp.videoWidth
+                                val vh = mp.videoHeight
+                                if (vw > 0 && vh > 0) {
+                                    applyCenterCropTransform(this@apply, vw, vh, width, height)
                                 }
+                            } catch (e: Exception) {
+                                Log.w(TAG, "Error on size changed transform: ${e.message}")
                             }
                         }
 
