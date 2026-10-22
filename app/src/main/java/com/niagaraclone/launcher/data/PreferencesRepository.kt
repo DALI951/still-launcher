@@ -14,6 +14,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.niagaraclone.launcher.data.model.ClockStyle
 import com.niagaraclone.launcher.data.model.IconShape
 import com.niagaraclone.launcher.data.model.IconStyle
+import com.niagaraclone.launcher.data.model.IconThemingMode
 import com.niagaraclone.launcher.data.model.LauncherSettings
 import com.niagaraclone.launcher.data.model.ThemePreset
 import com.niagaraclone.launcher.data.model.WallpaperTheme
@@ -38,6 +39,7 @@ class PreferencesRepository(private val context: Context) {
         val SETTING_ICON_SIZE = intPreferencesKey("setting_icon_size")
         val SETTING_ICON_STYLE = stringPreferencesKey("setting_icon_style")
         val SETTING_ICON_SHAPE = stringPreferencesKey("setting_icon_shape")
+        val SETTING_ICON_THEMING_MODE = stringPreferencesKey("setting_icon_theming_mode")
         val SETTING_THEME_PRESET = stringPreferencesKey("setting_theme_preset")
         val SETTING_EDGE_PADDING = intPreferencesKey("setting_edge_padding")
         val SETTING_ROW_HEIGHT = intPreferencesKey("setting_row_height")
@@ -135,6 +137,8 @@ class PreferencesRepository(private val context: Context) {
             val iconStyle = try { IconStyle.valueOf(iconStyleName) } catch (e: Exception) { IconStyle.UNIFIED_THEMED }
             val iconShapeName = prefs[PreferencesKeys.SETTING_ICON_SHAPE] ?: IconShape.BARE.name
             val iconShape = try { IconShape.valueOf(iconShapeName) } catch (e: Exception) { IconShape.BARE }
+            val iconThemingModeName = prefs[PreferencesKeys.SETTING_ICON_THEMING_MODE] ?: IconThemingMode.GENTLE_SMART.name
+            val iconThemingMode = try { IconThemingMode.valueOf(iconThemingModeName) } catch (e: Exception) { IconThemingMode.GENTLE_SMART }
             val themePresetName = prefs[PreferencesKeys.SETTING_THEME_PRESET] ?: ThemePreset.NIAGARA_BLUE.name
             val themePreset = try { ThemePreset.valueOf(themePresetName) } catch (e: Exception) { ThemePreset.NIAGARA_BLUE }
             val edgePadding = prefs[PreferencesKeys.SETTING_EDGE_PADDING] ?: 44
@@ -169,6 +173,7 @@ class PreferencesRepository(private val context: Context) {
                 iconSizeDp = iconSize,
                 iconStyle = iconStyle,
                 iconShape = iconShape,
+                iconThemingMode = iconThemingMode,
                 themePreset = themePreset,
                 edgePaddingDp = edgePadding,
                 rowHeightDp = rowHeight,
@@ -205,6 +210,7 @@ class PreferencesRepository(private val context: Context) {
             prefs[PreferencesKeys.SETTING_ICON_SIZE] = updated.iconSizeDp
             prefs[PreferencesKeys.SETTING_ICON_STYLE] = updated.iconStyle.name
             prefs[PreferencesKeys.SETTING_ICON_SHAPE] = updated.iconShape.name
+            prefs[PreferencesKeys.SETTING_ICON_THEMING_MODE] = updated.iconThemingMode.name
             prefs[PreferencesKeys.SETTING_THEME_PRESET] = updated.themePreset.name
             prefs[PreferencesKeys.SETTING_EDGE_PADDING] = updated.edgePaddingDp
             prefs[PreferencesKeys.SETTING_ROW_HEIGHT] = updated.rowHeightDp
@@ -242,6 +248,7 @@ class PreferencesRepository(private val context: Context) {
             prefs.remove(PreferencesKeys.SETTING_ICON_SIZE)
             prefs.remove(PreferencesKeys.SETTING_ICON_STYLE)
             prefs.remove(PreferencesKeys.SETTING_ICON_SHAPE)
+            prefs.remove(PreferencesKeys.SETTING_ICON_THEMING_MODE)
             prefs.remove(PreferencesKeys.SETTING_THEME_PRESET)
             prefs.remove(PreferencesKeys.SETTING_EDGE_PADDING)
             prefs.remove(PreferencesKeys.SETTING_ROW_HEIGHT)

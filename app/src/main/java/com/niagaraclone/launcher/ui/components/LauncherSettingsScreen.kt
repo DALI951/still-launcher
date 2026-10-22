@@ -89,6 +89,7 @@ import com.niagaraclone.launcher.data.ColorExtractor
 import com.niagaraclone.launcher.data.model.ClockStyle
 import com.niagaraclone.launcher.data.model.IconShape
 import com.niagaraclone.launcher.data.model.IconStyle
+import com.niagaraclone.launcher.data.model.IconThemingMode
 import com.niagaraclone.launcher.data.model.LauncherSettings
 import com.niagaraclone.launcher.data.model.ThemePreset
 import com.niagaraclone.launcher.data.model.WallpaperTheme
@@ -746,6 +747,27 @@ fun LauncherSettingsScreen(
                                     accentColor = previewAccent,
                                     accentLight = previewAccentLight,
                                     onClick = { previewSettings = previewSettings.copy(iconStyle = style) }
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        SectionHeader("THEMING CRITERIA (GENTLE / PRESERVE DETAILS)")
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            IconThemingMode.values().forEach { mode ->
+                                val isSelected = previewSettings.iconThemingMode == mode
+                                ChipOption(
+                                    label = mode.label,
+                                    isSelected = isSelected,
+                                    accentColor = previewAccent,
+                                    accentLight = previewAccentLight,
+                                    onClick = { previewSettings = previewSettings.copy(iconThemingMode = mode) }
                                 )
                             }
                         }

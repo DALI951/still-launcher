@@ -423,6 +423,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun reorderFavorites(newKeys: List<String>) {
+        viewModelScope.launch {
+            preferencesRepository.setFavorites(newKeys)
+        }
+    }
+
     fun toggleHideApp(app: AppInfo) {
         viewModelScope.launch {
             if (app.isHidden) {

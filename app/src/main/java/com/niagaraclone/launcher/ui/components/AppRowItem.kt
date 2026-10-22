@@ -11,7 +11,9 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -28,12 +30,18 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -41,9 +49,11 @@ import androidx.compose.ui.unit.sp
 import com.niagaraclone.launcher.data.model.AppInfo
 import com.niagaraclone.launcher.data.model.IconShape
 import com.niagaraclone.launcher.data.model.IconStyle
+import com.niagaraclone.launcher.data.model.IconThemingMode
 import com.niagaraclone.launcher.data.model.LauncherSettings
 import com.niagaraclone.launcher.ui.theme.StarYellow
 import com.niagaraclone.launcher.ui.theme.TextPrimary
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -54,10 +64,57 @@ fun AppRowItem(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
-    showFavoriteStar: Boolean = false
+    showFavoriteStar: Boolean = false,
+    enableDragReorder: Boolean = false,
+    onDragStart: (() -> Unit)? = null,
+    onDrag: ((dragAmountY: Float) -> Unit)? = null,
+    onDragEnd: ((hasDragged: Boolean) -> Unit)? = null
 ) {
-    Row(
-        modifier = modifier
+    val rowModifier = if (enableDragReorder && onDrag != null) {
+        var hasDragged by remember { mutableStateOf(false) }
+        var accumulatedY by remember { mutableFloatStateOf(0f) }
+
+        modifier
+            .fillMaxWidth()
+            .height(settings.rowHeightDp.dp)
+            .clip(CircleShape)
+            .clickable(onClick = onClick)
+            .pointerInput(app.uniqueKey) {
+                detectDragGesturesAfterLongPress(
+                    onDragStart = {
+                        hasDragged = false
+                        accumulatedY = 0f
+                        onDragStart?.invoke()
+                    },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        accumulatedY += dragAmount.y
+                        if (abs(accumulatedY) > 8f) {
+                            hasDragged = true
+                        }
+                        onDrag(dragAmount.y)
+                    },
+                    onDragEnd = {
+                        if (!hasDragged) {
+                            onLongClick()
+                        }
+                        onDragEnd?.invoke(hasDragged)
+                        hasDragged = false
+                        accumulatedY = 0f
+                    },
+                    onDragCancel = {
+                        onDragEnd?.invoke(hasDragged)
+                        hasDragged = false
+                        accumulatedY = 0f
+                    }
+                )
+            }
+            .padding(
+                start = settings.edgePaddingDp.dp,
+                end = (settings.edgePaddingDp + 16).dp
+            )
+    } else {
+        modifier
             .fillMaxWidth()
             .height(settings.rowHeightDp.dp)
             .clip(CircleShape)
@@ -68,7 +125,11 @@ fun AppRowItem(
             .padding(
                 start = settings.edgePaddingDp.dp,
                 end = (settings.edgePaddingDp + 16).dp
-            ),
+            )
+    }
+
+    Row(
+        modifier = rowModifier,
         verticalAlignment = Alignment.CenterVertically
     ) {
         // App Icon rendered using theme settings
@@ -168,49 +229,94 @@ fun ThemedAppIcon(
                         val height = size.height.roundToInt()
                         val glyphColorInt = if (isDuotone) 0xFFFFFFFF.toInt() else settings.activeAccentLightHex.toInt()
 
-                        // Android 13+ (API 33+) native monochrome layer if available
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                        val hasMonochromeStencil = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                             drawable is AdaptiveIconDrawable &&
                             drawable.monochrome != null
-                        ) {
-                            val mono = drawable.monochrome!!.mutate()
-                            mono.setBounds(0, 0, width, height)
-                            mono.colorFilter = PorterDuffColorFilter(
-                                glyphColorInt,
-                                PorterDuff.Mode.SRC_IN
-                            )
-                            mono.draw(canvas.nativeCanvas)
-                            mono.colorFilter = null
-                        } else if (drawable is AdaptiveIconDrawable) {
-                            // Extract ONLY the foreground glyph and discard the third-party background!
-                            val fg = (drawable.foreground ?: drawable).mutate()
-                            fg.setBounds(0, 0, width, height)
-                            fg.colorFilter = PorterDuffColorFilter(
-                                glyphColorInt,
-                                PorterDuff.Mode.SRC_IN
-                            )
-                            fg.draw(canvas.nativeCanvas)
-                            fg.colorFilter = null
-                        } else {
-                            // High-quality desaturation + theme accent multiplier for legacy Drawables
-                            val tint = if (isDuotone) 0xFFE0E0E0L else settings.activeAccentLightHex
-                            val r = ((tint shr 16) and 0xFF) / 255f
-                            val g = ((tint shr 8) and 0xFF) / 255f
-                            val b = (tint and 0xFF) / 255f
 
-                            val matrix = ColorMatrix(
-                                floatArrayOf(
-                                    0.33f * r, 0.59f * r, 0.11f * r, 0f, 0f,
-                                    0.33f * g, 0.59f * g, 0.11f * g, 0f, 0f,
-                                    0.33f * b, 0.59f * b, 0.11f * b, 0f, 0f,
-                                    0f, 0f, 0f, 1f, 0f
-                                )
-                            )
-                            val icon = drawable.mutate()
-                            icon.setBounds(0, 0, width, height)
-                            icon.colorFilter = ColorMatrixColorFilter(matrix)
-                            icon.draw(canvas.nativeCanvas)
-                            icon.colorFilter = null
+                        when (settings.iconThemingMode) {
+                            IconThemingMode.GENTLE_SMART -> {
+                                if (hasMonochromeStencil) {
+                                    // Developer-provided Android 13+ single-color alpha stencil: safe to flat-tint
+                                    val mono = (drawable as AdaptiveIconDrawable).monochrome!!.mutate()
+                                    mono.setBounds(0, 0, width, height)
+                                    mono.colorFilter = PorterDuffColorFilter(
+                                        glyphColorInt,
+                                        PorterDuff.Mode.SRC_IN
+                                    )
+                                    mono.draw(canvas.nativeCanvas)
+                                    mono.colorFilter = null
+                                } else if (drawable is AdaptiveIconDrawable) {
+                                    // GENTLE CRITERIA: Keep original foreground details, shapes and contrast intact!
+                                    // NEVER flat-tint multi-color app icons with PorterDuff.Mode.SRC_IN!
+                                    val fg = (drawable.foreground ?: drawable).mutate()
+                                    fg.setBounds(0, 0, width, height)
+                                    fg.draw(canvas.nativeCanvas)
+                                } else {
+                                    val icon = drawable.mutate()
+                                    icon.setBounds(0, 0, width, height)
+                                    icon.draw(canvas.nativeCanvas)
+                                }
+                            }
+
+                            IconThemingMode.SUBTLE_TONAL -> {
+                                if (hasMonochromeStencil) {
+                                    val mono = (drawable as AdaptiveIconDrawable).monochrome!!.mutate()
+                                    mono.setBounds(0, 0, width, height)
+                                    mono.colorFilter = PorterDuffColorFilter(
+                                        glyphColorInt,
+                                        PorterDuff.Mode.SRC_IN
+                                    )
+                                    mono.draw(canvas.nativeCanvas)
+                                    mono.colorFilter = null
+                                } else {
+                                    // Subtle desaturation matrix preserving internal shapes & contrast
+                                    val matrix = ColorMatrix()
+                                    matrix.setSaturation(0.65f)
+                                    val icon = (if (drawable is AdaptiveIconDrawable) drawable.foreground ?: drawable else drawable).mutate()
+                                    icon.setBounds(0, 0, width, height)
+                                    icon.colorFilter = ColorMatrixColorFilter(matrix)
+                                    icon.draw(canvas.nativeCanvas)
+                                    icon.colorFilter = null
+                                }
+                            }
+
+                            IconThemingMode.FULL_MONOCHROME -> {
+                                if (hasMonochromeStencil) {
+                                    val mono = (drawable as AdaptiveIconDrawable).monochrome!!.mutate()
+                                    mono.setBounds(0, 0, width, height)
+                                    mono.colorFilter = PorterDuffColorFilter(
+                                        glyphColorInt,
+                                        PorterDuff.Mode.SRC_IN
+                                    )
+                                    mono.draw(canvas.nativeCanvas)
+                                    mono.colorFilter = null
+                                } else {
+                                    val tint = if (isDuotone) 0xFFE0E0E0L else settings.activeAccentLightHex
+                                    val r = ((tint shr 16) and 0xFF) / 255f
+                                    val g = ((tint shr 8) and 0xFF) / 255f
+                                    val b = (tint and 0xFF) / 255f
+
+                                    val matrix = ColorMatrix(
+                                        floatArrayOf(
+                                            0.33f * r, 0.59f * r, 0.11f * r, 0f, 0f,
+                                            0.33f * g, 0.59f * g, 0.11f * g, 0f, 0f,
+                                            0.33f * b, 0.59f * b, 0.11f * b, 0f, 0f,
+                                            0f, 0f, 0f, 1f, 0f
+                                        )
+                                    )
+                                    val icon = (if (drawable is AdaptiveIconDrawable) drawable.foreground ?: drawable else drawable).mutate()
+                                    icon.setBounds(0, 0, width, height)
+                                    icon.colorFilter = ColorMatrixColorFilter(matrix)
+                                    icon.draw(canvas.nativeCanvas)
+                                    icon.colorFilter = null
+                                }
+                            }
+
+                            IconThemingMode.ORIGINAL -> {
+                                val icon = (if (drawable is AdaptiveIconDrawable) drawable.foreground ?: drawable else drawable).mutate()
+                                icon.setBounds(0, 0, width, height)
+                                icon.draw(canvas.nativeCanvas)
+                            }
                         }
                     }
                 }

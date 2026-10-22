@@ -1,6 +1,7 @@
 package com.niagaraclone.launcher.ui.components
 
 import android.graphics.BitmapFactory
+import android.view.HapticFeedbackConstants
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -54,6 +55,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -64,14 +66,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.niagaraclone.launcher.R
 import com.niagaraclone.launcher.data.AssetWallpaperLoader
 import com.niagaraclone.launcher.data.ReleaseInfo
@@ -104,9 +109,20 @@ fun LauncherHomeScreen(
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
     val density = LocalDensity.current
+    val view = LocalView.current
     val settings = uiState.settings
     val themeAccent = Color(settings.activeAccentHex)
     val themeAccentLight = Color(settings.activeAccentLightHex)
+
+    var draggingFavKey by remember { mutableStateOf<String?>(null) }
+    var dragOffsetY by remember { mutableFloatStateOf(0f) }
+    var currentFavList by remember(uiState.favoriteApps) { mutableStateOf(uiState.favoriteApps) }
+
+    LaunchedEffect(uiState.favoriteApps, draggingFavKey) {
+        if (draggingFavKey == null) {
+            currentFavList = uiState.favoriteApps
+        }
+    }
 
     var isWaveScrubbing by remember { mutableStateOf(false) }
     val dragThresholdPx = with(density) { 40.dp.toPx() }
@@ -344,18 +360,72 @@ fun LauncherHomeScreen(
                     )
                 }
 
-                // ONLY Favorites apps on the Home Screen
+                // ONLY Favorites apps on the Home Screen with Drag-to-Reorder physics
                 items(
-                    count = uiState.favoriteApps.size,
-                    key = { index -> "fav_${uiState.favoriteApps[index].uniqueKey}" }
+                    count = currentFavList.size,
+                    key = { index -> "fav_${currentFavList[index].uniqueKey}" }
                 ) { index ->
-                    val app = uiState.favoriteApps[index]
+                    val app = currentFavList[index]
+                    val isDragging = app.uniqueKey == draggingFavKey
+                    val itemHeightPx = with(density) { settings.rowHeightDp.dp.toPx() }
+
+                    val itemModifier = if (isDragging) {
+                        Modifier
+                            .zIndex(10f)
+                            .graphicsLayer {
+                                translationY = dragOffsetY
+                                scaleX = 1.04f
+                                scaleY = 1.04f
+                                shadowElevation = 12.dp.toPx()
+                            }
+                    } else {
+                        Modifier.zIndex(1f)
+                    }
+
                     AppRowItem(
                         app = app,
                         settings = settings,
                         onClick = { viewModel.launchApp(app) },
                         onLongClick = { viewModel.openAppContextMenu(app) },
-                        showFavoriteStar = false
+                        showFavoriteStar = false,
+                        enableDragReorder = true,
+                        onDragStart = {
+                            draggingFavKey = app.uniqueKey
+                            dragOffsetY = 0f
+                            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                        },
+                        onDrag = { deltaY ->
+                            dragOffsetY += deltaY
+                            val currentIndex = currentFavList.indexOfFirst { it.uniqueKey == app.uniqueKey }
+                            if (currentIndex != -1) {
+                                if (dragOffsetY < -itemHeightPx * 0.5f && currentIndex > 0) {
+                                    val mutable = currentFavList.toMutableList()
+                                    val targetIndex = currentIndex - 1
+                                    val item = mutable.removeAt(currentIndex)
+                                    mutable.add(targetIndex, item)
+                                    currentFavList = mutable
+                                    dragOffsetY += itemHeightPx
+                                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                                } else if (dragOffsetY > itemHeightPx * 0.5f && currentIndex < currentFavList.lastIndex) {
+                                    val mutable = currentFavList.toMutableList()
+                                    val targetIndex = currentIndex + 1
+                                    val item = mutable.removeAt(currentIndex)
+                                    mutable.add(targetIndex, item)
+                                    currentFavList = mutable
+                                    dragOffsetY -= itemHeightPx
+                                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                                }
+                            }
+                        },
+                        onDragEnd = { hasDragged ->
+                            if (hasDragged) {
+                                viewModel.reorderFavorites(currentFavList.map { it.uniqueKey })
+                                view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                            }
+                            draggingFavKey = null
+                            dragOffsetY = 0f
+                        },
+                        modifier = itemModifier
                     )
                 }
 

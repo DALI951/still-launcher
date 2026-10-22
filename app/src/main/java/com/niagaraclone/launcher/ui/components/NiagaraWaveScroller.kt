@@ -98,6 +98,16 @@ fun NiagaraWaveScroller(
     var touchY by remember { mutableFloatStateOf(0f) }
     var activeIndex by remember { mutableIntStateOf(-1) }
 
+    // Dampen digitizer touch jitter for liquid smooth wave motion
+    val smoothTouchY by animateFloatAsState(
+        targetValue = touchY,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMediumLow
+        ),
+        label = "smoothTouchY"
+    )
+
     // Wave progress smoothly animates in and out when touched
     val waveProgress by animateFloatAsState(
         targetValue = if (isTouching) 1f else 0f,
@@ -200,8 +210,10 @@ fun NiagaraWaveScroller(
         // Floating frosted glass letter preview bubble appearing next to thumb
         AnimatedVisibility(
             visible = isTouching && activeIndex in effectiveSymbols.indices,
-            enter = scaleIn() + fadeIn(),
-            exit = scaleOut() + fadeOut(),
+            enter = scaleIn(animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow)) +
+                    fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)),
+            exit = scaleOut(animationSpec = spring(stiffness = Spring.StiffnessMedium)) +
+                    fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMedium)),
             modifier = Modifier.align(if (isLeftSide) Alignment.TopStart else Alignment.TopEnd)
         ) {
             if (activeIndex in effectiveSymbols.indices) {
@@ -210,7 +222,7 @@ fun NiagaraWaveScroller(
                 val bubbleHeight = 56.dp
                 val bubbleShape = if (isSettingsSymbol) RoundedCornerShape(18.dp) else CircleShape
 
-                val bubbleOffsetY = (waveTopOffset + touchY - with(density) { 28.dp.toPx() })
+                val bubbleOffsetY = (waveTopOffset + smoothTouchY - with(density) { 28.dp.toPx() })
                     .coerceIn(0f, totalAvailableHeight - with(density) { 56.dp.toPx() })
 
                 val bubbleOffsetX = if (isLeftSide) {
@@ -223,9 +235,9 @@ fun NiagaraWaveScroller(
                     modifier = Modifier
                         .offset { IntOffset(bubbleOffsetX, bubbleOffsetY.roundToInt()) }
                         .size(width = bubbleWidth, height = bubbleHeight)
-                        .shadow(16.dp, bubbleShape)
-                        .background(Color(0xEE1C1E24), bubbleShape)
-                        .border(1.5.dp, themeAccentLight.copy(alpha = 0.6f), bubbleShape),
+                        .shadow(20.dp, bubbleShape)
+                        .background(Color(0xF0181A22), bubbleShape)
+                        .border(1.5.dp, themeAccentLight.copy(alpha = 0.55f), bubbleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     if (isSettingsSymbol) {
@@ -269,7 +281,7 @@ fun NiagaraWaveScroller(
         ) {
             effectiveSymbols.forEachIndexed { i, symbol ->
                 val symbolCenterY = (i + 0.5f) * symbolSpacing
-                val dist = abs(symbolCenterY - touchY)
+                val dist = abs(symbolCenterY - smoothTouchY)
                 val d_i = (dist / waveRadiusPx).coerceAtMost(1f)
 
                 // Mathematical raised-cosine distortion
@@ -277,7 +289,7 @@ fun NiagaraWaveScroller(
                 val rawDeltaX = maxAmplitudePx * cosFactor * waveProgress
                 val deltaX = if (isLeftSide) rawDeltaX else -rawDeltaX
 
-                val sign = if (symbolCenterY >= touchY) 1f else -1f
+                val sign = if (symbolCenterY >= smoothTouchY) 1f else -1f
                 val deltaY = sign * maxSpreadPx * sin(PI * (1f - d_i)).toFloat() * waveProgress
 
                 val scale = 1.0f + 0.55f * (1f - d_i) * (1f - d_i) * waveProgress

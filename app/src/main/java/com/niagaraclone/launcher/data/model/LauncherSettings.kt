@@ -14,6 +14,13 @@ enum class IconShape(val label: String) {
     BARE("No Background")
 }
 
+enum class IconThemingMode(val label: String) {
+    GENTLE_SMART("Gentle Smart"),
+    SUBTLE_TONAL("Subtle Tonal"),
+    FULL_MONOCHROME("Strict Monochrome"),
+    ORIGINAL("Original Vibrant")
+}
+
 enum class ThemePreset(
     val label: String,
     val accentHex: Long,
@@ -80,6 +87,7 @@ data class LauncherSettings(
     val iconSizeDp: Int = 26,             // range 18..42
     val iconStyle: IconStyle = IconStyle.UNIFIED_THEMED,
     val iconShape: IconShape = IconShape.BARE,
+    val iconThemingMode: IconThemingMode = IconThemingMode.GENTLE_SMART,
     val themePreset: ThemePreset = ThemePreset.NIAGARA_BLUE,
     val edgePaddingDp: Int = 44,          // range 20..76
     val rowHeightDp: Int = 46,            // range 36..60
