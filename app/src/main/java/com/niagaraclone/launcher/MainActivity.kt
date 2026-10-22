@@ -29,6 +29,7 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.StartActivityForResult()
     ) {
         viewModel.refreshPermissionsAndPendingInstall()
+        requestNotificationPermissionIfNeeded()
     }
 
     private val notificationPermissionLauncher = registerForActivityResult(
@@ -43,20 +44,13 @@ class MainActivity : ComponentActivity() {
         // Enable edge-to-edge transparent system bars
         enableEdgeToEdge()
 
-        // Prompt for notification permission on Android 13+ if not yet granted
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.POST_NOTIFICATIONS
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        }
-
-        // If not yet the default launcher, prompt the user immediately
+        // Priority #1: If not yet the default home launcher, ask immediately (and show onboarding dialog)
+        // Do NOT launch two system dialogs simultaneously, or Android drops the second one!
         if (!viewModel.permissionsManager.isCurrentDefaultLauncher()) {
+            viewModel.setDefaultPromptDialogVisible(true)
             promptSetDefaultLauncher()
+        } else {
+            requestNotificationPermissionIfNeeded()
         }
 
         setContent {
@@ -85,6 +79,18 @@ class MainActivity : ComponentActivity() {
                         }
                     )
                 }
+            }
+        }
+    }
+
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
     }

@@ -181,7 +181,9 @@ fun LauncherHomeScreen(
                 item(key = "header_status_banner") {
                     HomeStatusBanner(
                         updateState = uiState.updateState,
+                        isDefaultLauncher = uiState.permissionsState.isDefaultLauncher,
                         hasEssentialPermissions = uiState.permissionsState.allEssentialGranted,
+                        onRequestDefaultLauncher = onRequestDefaultLauncher,
                         onOpenUpdateSheet = { viewModel.setUpdateSheetActive(true) },
                         onDownloadUpdate = { viewModel.downloadUpdate(it) },
                         onInstallUpdate = { viewModel.installDownloadedApk(it) },
@@ -643,14 +645,48 @@ private fun buildAllAppItemsAndIndices(
 @Composable
 private fun HomeStatusBanner(
     updateState: UpdateUiState,
+    isDefaultLauncher: Boolean,
     hasEssentialPermissions: Boolean,
+    onRequestDefaultLauncher: () -> Unit,
     onOpenUpdateSheet: () -> Unit,
     onDownloadUpdate: (ReleaseInfo) -> Unit,
     onInstallUpdate: (File) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    when (updateState) {
-        is UpdateUiState.ReadyToInstall -> {
+    when {
+        !isDefaultLauncher -> {
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = Color(0x551E5CCB),
+                modifier = modifier.clickable(onClick = onRequestDefaultLauncher)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Security,
+                        contentDescription = null,
+                        tint = Color(0xFF99C2FF),
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Set as Default Home Screen",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, fontSize = 13.sp),
+                            color = TextPrimary
+                        )
+                        Text(
+                            text = "Tap here to make Niagara your real Home app",
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                            color = TextSecondary
+                        )
+                    }
+                }
+            }
+        }
+        updateState is UpdateUiState.ReadyToInstall -> {
             Surface(
                 shape = RoundedCornerShape(14.dp),
                 color = Color(0x444CAF50),
@@ -682,7 +718,7 @@ private fun HomeStatusBanner(
                 }
             }
         }
-        is UpdateUiState.Downloading -> {
+        updateState is UpdateUiState.Downloading -> {
             Surface(
                 shape = RoundedCornerShape(14.dp),
                 color = Color(0x33FFFFFF),
@@ -718,7 +754,7 @@ private fun HomeStatusBanner(
                 }
             }
         }
-        is UpdateUiState.UpdateAvailable -> {
+        updateState is UpdateUiState.UpdateAvailable -> {
             Surface(
                 shape = RoundedCornerShape(14.dp),
                 color = Color(0x441E5CCB),

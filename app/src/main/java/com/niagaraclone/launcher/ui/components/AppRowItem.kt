@@ -237,3 +237,16 @@ fun ThemedAppIcon(
         }
     }
 }
+
+@Composable
+fun AppIcon(
+    drawable: Drawable?,
+    modifier: Modifier = Modifier,
+    settings: LauncherSettings = LauncherSettings()
+) {
+    ThemedAppIcon(
+        drawable = drawable,
+        settings = settings,
+        modifier = modifier
+    )
+}
