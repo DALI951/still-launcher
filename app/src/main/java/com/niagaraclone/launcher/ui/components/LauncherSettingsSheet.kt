@@ -43,10 +43,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.niagaraclone.launcher.data.model.ClockStyle
 import com.niagaraclone.launcher.data.model.IconShape
 import com.niagaraclone.launcher.data.model.IconStyle
 import com.niagaraclone.launcher.data.model.LauncherSettings
 import com.niagaraclone.launcher.data.model.ThemePreset
+import com.niagaraclone.launcher.data.model.WaveVisibility
 import com.niagaraclone.launcher.ui.theme.SurfaceTranslucent
 import com.niagaraclone.launcher.ui.theme.TextMuted
 import com.niagaraclone.launcher.ui.theme.TextPrimary
@@ -290,8 +292,8 @@ fun LauncherSettingsSheet(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // 10. Toggles Section
-            SectionHeader(title = "HEADER & ERGONOMICS")
+            // 10. NIAGARA CLOCK & HEADER
+            SectionHeader(title = "NIAGARA CLOCK & HEADER")
 
             ToggleRow(
                 title = "Show Clock",
@@ -299,6 +301,48 @@ fun LauncherSettingsSheet(
                 accentColor = themeAccent,
                 onCheckedChange = { checked -> onUpdateSettings { it.copy(showClock = checked) } }
             )
+
+            if (settings.showClock) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Clock Typography Style",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                    color = TextPrimary
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ClockStyle.values().forEach { style ->
+                        val isSelected = settings.clockStyle == style
+                        ChipOption(
+                            label = style.label,
+                            isSelected = isSelected,
+                            accentColor = themeAccent,
+                            accentLight = themeAccentLight,
+                            onClick = { onUpdateSettings { it.copy(clockStyle = style) } }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                SliderSetting(
+                    title = "Clock Font Size",
+                    valueDisplay = "${settings.clockFontSizeSp} sp",
+                    value = settings.clockFontSizeSp.toFloat(),
+                    valueRange = 32f..72f,
+                    accentColor = themeAccent,
+                    onValueChange = {
+                        onUpdateSettings { s -> s.copy(clockFontSizeSp = it.roundToInt()) }
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             ToggleRow(
                 title = "Show Date",
@@ -313,6 +357,63 @@ fun LauncherSettingsSheet(
                 accentColor = themeAccent,
                 onCheckedChange = { checked -> onUpdateSettings { it.copy(showBatteryAndAlarm = checked) } }
             )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // 11. ALPHABET WAVE & ERGONOMICS
+            SectionHeader(title = "ALPHABET WAVE & ERGONOMICS")
+
+            Text(
+                text = "Wave Visibility",
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                color = TextPrimary
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                WaveVisibility.values().forEach { visibility ->
+                    val isSelected = settings.waveVisibility == visibility
+                    ChipOption(
+                        label = visibility.label,
+                        isSelected = isSelected,
+                        accentColor = themeAccent,
+                        accentLight = themeAccentLight,
+                        onClick = { onUpdateSettings { it.copy(waveVisibility = visibility) } }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            SliderSetting(
+                title = "Wave Vertical Height",
+                valueDisplay = "${settings.waveHeightPercent}%",
+                value = settings.waveHeightPercent.toFloat(),
+                valueRange = 40f..90f,
+                accentColor = themeAccent,
+                onValueChange = {
+                    onUpdateSettings { s -> s.copy(waveHeightPercent = it.roundToInt()) }
+                }
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            SliderSetting(
+                title = "Wave Letter Font Size",
+                valueDisplay = "${settings.waveLetterSizeSp} sp",
+                value = settings.waveLetterSizeSp.toFloat(),
+                valueRange = 8f..14f,
+                accentColor = themeAccent,
+                onValueChange = {
+                    onUpdateSettings { s -> s.copy(waveLetterSizeSp = it.roundToInt()) }
+                }
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             ToggleRow(
                 title = "Left-Handed Wave Mode",

@@ -10,10 +10,12 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.niagaraclone.launcher.data.model.ClockStyle
 import com.niagaraclone.launcher.data.model.IconShape
 import com.niagaraclone.launcher.data.model.IconStyle
 import com.niagaraclone.launcher.data.model.LauncherSettings
 import com.niagaraclone.launcher.data.model.ThemePreset
+import com.niagaraclone.launcher.data.model.WaveVisibility
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
@@ -29,7 +31,7 @@ class PreferencesRepository(private val context: Context) {
         val HIDDEN_KEYS = stringSetPreferencesKey("hidden_keys")
         val IS_INITIAL_SEEDED = booleanPreferencesKey("is_initial_seeded")
 
-        // Phase 5 Customization & Sizing Settings
+        // Customization & Sizing Settings
         val SETTING_ICON_SIZE = intPreferencesKey("setting_icon_size")
         val SETTING_ICON_STYLE = stringPreferencesKey("setting_icon_style")
         val SETTING_ICON_SHAPE = stringPreferencesKey("setting_icon_shape")
@@ -43,6 +45,13 @@ class PreferencesRepository(private val context: Context) {
         val SETTING_SHOW_DATE = booleanPreferencesKey("setting_show_date")
         val SETTING_SHOW_BATTERY_ALARM = booleanPreferencesKey("setting_show_battery_alarm")
         val SETTING_WAVE_LEFT_SIDE = booleanPreferencesKey("setting_wave_left_side")
+
+        // Phase 6 Clock & Wave Ergonomics
+        val SETTING_CLOCK_STYLE = stringPreferencesKey("setting_clock_style")
+        val SETTING_CLOCK_FONT_SIZE = intPreferencesKey("setting_clock_font_size")
+        val SETTING_WAVE_VISIBILITY = stringPreferencesKey("setting_wave_visibility")
+        val SETTING_WAVE_HEIGHT_PERCENT = intPreferencesKey("setting_wave_height_percent")
+        val SETTING_WAVE_LETTER_SIZE = intPreferencesKey("setting_wave_letter_size")
     }
 
     private val dataStore = context.launcherDataStore
@@ -126,6 +135,14 @@ class PreferencesRepository(private val context: Context) {
             val showBatteryAlarm = prefs[PreferencesKeys.SETTING_SHOW_BATTERY_ALARM] ?: true
             val waveLeftSide = prefs[PreferencesKeys.SETTING_WAVE_LEFT_SIDE] ?: false
 
+            val clockStyleName = prefs[PreferencesKeys.SETTING_CLOCK_STYLE] ?: ClockStyle.NIAGARA_CLEAN.name
+            val clockStyle = try { ClockStyle.valueOf(clockStyleName) } catch (e: Exception) { ClockStyle.NIAGARA_CLEAN }
+            val clockFontSize = prefs[PreferencesKeys.SETTING_CLOCK_FONT_SIZE] ?: 54
+            val waveVisibilityName = prefs[PreferencesKeys.SETTING_WAVE_VISIBILITY] ?: WaveVisibility.ALWAYS_VISIBLE.name
+            val waveVisibility = try { WaveVisibility.valueOf(waveVisibilityName) } catch (e: Exception) { WaveVisibility.ALWAYS_VISIBLE }
+            val waveHeightPercent = prefs[PreferencesKeys.SETTING_WAVE_HEIGHT_PERCENT] ?: 68
+            val waveLetterSize = prefs[PreferencesKeys.SETTING_WAVE_LETTER_SIZE] ?: 10
+
             LauncherSettings(
                 iconSizeDp = iconSize,
                 iconStyle = iconStyle,
@@ -139,7 +156,12 @@ class PreferencesRepository(private val context: Context) {
                 showClock = showClock,
                 showDate = showDate,
                 showBatteryAndAlarm = showBatteryAlarm,
-                waveOnLeftSide = waveLeftSide
+                waveOnLeftSide = waveLeftSide,
+                clockStyle = clockStyle,
+                clockFontSizeSp = clockFontSize,
+                waveVisibility = waveVisibility,
+                waveHeightPercent = waveHeightPercent,
+                waveLetterSizeSp = waveLetterSize
             )
         }
 
@@ -164,6 +186,11 @@ class PreferencesRepository(private val context: Context) {
             prefs[PreferencesKeys.SETTING_SHOW_DATE] = updated.showDate
             prefs[PreferencesKeys.SETTING_SHOW_BATTERY_ALARM] = updated.showBatteryAndAlarm
             prefs[PreferencesKeys.SETTING_WAVE_LEFT_SIDE] = updated.waveOnLeftSide
+            prefs[PreferencesKeys.SETTING_CLOCK_STYLE] = updated.clockStyle.name
+            prefs[PreferencesKeys.SETTING_CLOCK_FONT_SIZE] = updated.clockFontSizeSp
+            prefs[PreferencesKeys.SETTING_WAVE_VISIBILITY] = updated.waveVisibility.name
+            prefs[PreferencesKeys.SETTING_WAVE_HEIGHT_PERCENT] = updated.waveHeightPercent
+            prefs[PreferencesKeys.SETTING_WAVE_LETTER_SIZE] = updated.waveLetterSizeSp
         }
     }
 
@@ -185,6 +212,11 @@ class PreferencesRepository(private val context: Context) {
             prefs.remove(PreferencesKeys.SETTING_SHOW_DATE)
             prefs.remove(PreferencesKeys.SETTING_SHOW_BATTERY_ALARM)
             prefs.remove(PreferencesKeys.SETTING_WAVE_LEFT_SIDE)
+            prefs.remove(PreferencesKeys.SETTING_CLOCK_STYLE)
+            prefs.remove(PreferencesKeys.SETTING_CLOCK_FONT_SIZE)
+            prefs.remove(PreferencesKeys.SETTING_WAVE_VISIBILITY)
+            prefs.remove(PreferencesKeys.SETTING_WAVE_HEIGHT_PERCENT)
+            prefs.remove(PreferencesKeys.SETTING_WAVE_LETTER_SIZE)
         }
     }
 

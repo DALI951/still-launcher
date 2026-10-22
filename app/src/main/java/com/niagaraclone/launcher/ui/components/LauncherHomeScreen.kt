@@ -356,6 +356,7 @@ fun LauncherHomeScreen(
         NiagaraWaveScroller(
             symbols = uiState.alphabetSymbols,
             availableSymbols = uiState.availableSymbols,
+            settings = settings,
             themePreset = settings.themePreset,
             isLeftSide = settings.waveOnLeftSide,
             onSymbolSelected = { symbol ->
@@ -527,12 +528,14 @@ fun LauncherHomeScreen(
         if (uiState.isManageAppsActive) {
             ManageAppsSheet(
                 favoriteApps = uiState.favoriteApps,
+                allApps = uiState.allApps,
                 hiddenApps = uiState.hiddenApps,
                 onDismissRequest = { viewModel.setManageAppsActive(false) },
-                onRemoveFavorite = { viewModel.toggleFavorite(it) },
+                onToggleFavorite = { viewModel.toggleFavorite(it) },
                 onMoveFavoriteUp = { viewModel.moveFavorite(it, -1) },
                 onMoveFavoriteDown = { viewModel.moveFavorite(it, 1) },
-                onUnhideApp = { viewModel.toggleHideApp(it) }
+                onUnhideApp = { viewModel.toggleHideApp(it) },
+                settings = settings
             )
         }
 

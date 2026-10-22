@@ -28,9 +28,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.niagaraclone.launcher.data.model.ClockStyle
 import com.niagaraclone.launcher.data.model.LauncherSettings
 import com.niagaraclone.launcher.data.model.SystemStatus
 import com.niagaraclone.launcher.ui.theme.TextMuted
@@ -46,21 +49,32 @@ fun AtAGlanceHeader(
     val context = LocalContext.current
     val themeAccentLight = Color(settings.themePreset.accentLightHex)
 
+    // Typography resolution for the selected ClockStyle
+    val (fontFamily, fontWeight, letterSpacing) = when (settings.clockStyle) {
+        ClockStyle.NIAGARA_CLEAN -> Triple(FontFamily.SansSerif, FontWeight.Light, (-1.5).sp)
+        ClockStyle.ROUNDED_MINIMAL -> Triple(FontFamily.SansSerif, FontWeight.Normal, (-0.5).sp)
+        ClockStyle.MODERN_MONO -> Triple(FontFamily.Monospace, FontWeight.Medium, (-1.0).sp)
+        ClockStyle.SERIF_ELEGANT -> Triple(FontFamily.Serif, FontWeight.Light, (-0.5).sp)
+        ClockStyle.THIN_AESTHETIC -> Triple(FontFamily.SansSerif, FontWeight.ExtraLight, (-2.0).sp)
+        ClockStyle.BOLD_COMPACT -> Triple(FontFamily.SansSerif, FontWeight.Bold, (-1.5).sp)
+    }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp)
     ) {
-        // Minimalist Large Clock
+        // Minimalist Clock Styled per ClockStyle
         if (settings.showClock) {
             Text(
                 text = systemStatus.timeText.ifEmpty { "--:--" },
-                style = MaterialTheme.typography.displayLarge.copy(
-                    fontSize = 58.sp,
-                    fontWeight = FontWeight.Light,
-                    letterSpacing = (-1.5).sp
+                style = TextStyle(
+                    fontFamily = fontFamily,
+                    fontWeight = fontWeight,
+                    fontSize = settings.clockFontSizeSp.sp,
+                    letterSpacing = letterSpacing,
+                    color = TextPrimary
                 ),
-                color = TextPrimary,
                 modifier = Modifier
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
@@ -72,31 +86,46 @@ fun AtAGlanceHeader(
             Spacer(modifier = Modifier.height(2.dp))
         }
 
-        // Date Line
+        // Date Line with optional Weather / Bullet Integration
         if (settings.showDate) {
-            Text(
-                text = systemStatus.dateText.ifEmpty { "Today" },
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.Normal,
-                    fontSize = 17.sp
-                ),
-                color = TextSecondary,
-                modifier = Modifier
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) {
-                        launchCalendar(context)
-                    }
-            )
-            Spacer(modifier = Modifier.height(10.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {
+                    launchCalendar(context)
+                }
+            ) {
+                Text(
+                    text = systemStatus.dateText.ifEmpty { "Today" },
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Normal,
+                        fontSize = 16.sp
+                    ),
+                    color = TextSecondary
+                )
+
+                if (!systemStatus.weatherSummary.isNullOrEmpty()) {
+                    Text(
+                        text = "• ${systemStatus.weatherSummary}",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Normal,
+                            fontSize = 15.sp
+                        ),
+                        color = TextSecondary
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
         }
 
-        // Status Row: Battery, Next Alarm, Weather
+        // Status Row: Battery & Next Alarm
         if (settings.showBatteryAndAlarm) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 // Battery Status
@@ -147,15 +176,6 @@ fun AtAGlanceHeader(
                             color = TextMuted
                         )
                     }
-                }
-
-                // Weather pill if present
-                if (!systemStatus.weatherSummary.isNullOrEmpty()) {
-                    Text(
-                        text = systemStatus.weatherSummary,
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp),
-                        color = TextMuted
-                    )
                 }
             }
         }

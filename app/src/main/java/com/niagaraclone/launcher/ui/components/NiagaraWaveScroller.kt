@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -41,7 +42,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.niagaraclone.launcher.data.model.LauncherSettings
 import com.niagaraclone.launcher.data.model.ThemePreset
+import com.niagaraclone.launcher.data.model.WaveVisibility
 import com.niagaraclone.launcher.ui.theme.TextMuted
 import com.niagaraclone.launcher.ui.theme.TextPrimary
 import kotlin.math.PI
@@ -65,8 +68,9 @@ fun NiagaraWaveScroller(
     onSymbolSelected: (Char) -> Unit,
     onScrubbingStateChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
-    themePreset: ThemePreset = ThemePreset.NIAGARA_BLUE,
-    isLeftSide: Boolean = false
+    settings: LauncherSettings = LauncherSettings(),
+    themePreset: ThemePreset = settings.themePreset,
+    isLeftSide: Boolean = settings.waveOnLeftSide
 ) {
     val view = LocalView.current
     val density = LocalDensity.current
@@ -88,14 +92,29 @@ fun NiagaraWaveScroller(
         label = "waveProgress"
     )
 
+    // Visibility alpha depending on WaveVisibility setting
+    val visibilityAlpha by animateFloatAsState(
+        targetValue = when (settings.waveVisibility) {
+            WaveVisibility.ALWAYS_VISIBLE -> 1f
+            WaveVisibility.TOUCH_ONLY -> if (isTouching || waveProgress > 0.05f) 1f else 0f
+            WaveVisibility.SUBTLE_DOTS -> 1f
+        },
+        animationSpec = spring(stiffness = Spring.StiffnessMedium),
+        label = "visibilityAlpha"
+    )
+
     val maxAmplitudePx = with(density) { 68.dp.toPx() }
     val maxSpreadPx = with(density) { 14.dp.toPx() }
     val waveRadiusPx = with(density) { 140.dp.toPx() }
 
+    val milestoneLetters = remember { setOf('★', '#', 'A', 'E', 'I', 'M', 'Q', 'U', 'Z') }
+
     BoxWithConstraints(
         modifier = modifier
-            .fillMaxHeight()
+            .fillMaxHeight(settings.waveHeightPercent / 100f)
+            .wrapContentHeight(Alignment.CenterVertically)
             .width(52.dp)
+            .alpha(visibilityAlpha)
             .pointerInput(symbols) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
@@ -208,6 +227,9 @@ fun NiagaraWaveScroller(
             val baseOffsetY = i * symbolSpacing
             val finalOffsetY = baseOffsetY + deltaY
 
+            val isMilestone = symbol in milestoneLetters
+            val isDotsMode = settings.waveVisibility == WaveVisibility.SUBTLE_DOTS && !isTouching
+
             Box(
                 modifier = Modifier
                     .offset {
@@ -224,20 +246,33 @@ fun NiagaraWaveScroller(
                     },
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = symbol.toString(),
-                    color = textColor,
-                    fontSize = if (symbol == '★') 11.sp else 10.sp,
-                    fontWeight = if (isCurrent || hasApps) FontWeight.Bold else FontWeight.Normal,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.alpha(
-                        when {
-                            isCurrent -> 1f
-                            hasApps -> (0.8f + 0.2f * (1f - d_i))
-                            else -> 0.35f
-                        }
+                if (isDotsMode) {
+                    if (isMilestone) {
+                        Box(
+                            modifier = Modifier
+                                .size(3.5.dp)
+                                .background(
+                                    if (hasApps) themeAccentLight else TextMuted.copy(alpha = 0.4f),
+                                    CircleShape
+                                )
+                        )
+                    }
+                } else {
+                    Text(
+                        text = symbol.toString(),
+                        color = textColor,
+                        fontSize = if (symbol == '★') (settings.waveLetterSizeSp + 1).sp else settings.waveLetterSizeSp.sp,
+                        fontWeight = if (isCurrent || hasApps) FontWeight.Bold else FontWeight.Normal,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.alpha(
+                            when {
+                                isCurrent -> 1f
+                                hasApps -> (0.8f + 0.2f * (1f - d_i))
+                                else -> 0.35f
+                            }
+                        )
                     )
-                )
+                }
             }
         }
     }

@@ -28,6 +28,21 @@ enum class ThemePreset(
     FROST_CYAN("Frost Cyan", 0xFF00BCD4, 0xFF80DEEA, 0xFF06181C)
 }
 
+enum class ClockStyle(val label: String) {
+    NIAGARA_CLEAN("Clean Sans"),
+    ROUNDED_MINIMAL("Rounded"),
+    MODERN_MONO("Monospace"),
+    SERIF_ELEGANT("Serif Elegant"),
+    THIN_AESTHETIC("Ultra Thin"),
+    BOLD_COMPACT("Bold Compact")
+}
+
+enum class WaveVisibility(val label: String) {
+    ALWAYS_VISIBLE("Always Visible"),
+    TOUCH_ONLY("Hidden Until Touched"),
+    SUBTLE_DOTS("Minimal Dots")
+}
+
 data class LauncherSettings(
     val iconSizeDp: Int = 26,             // range 18..42
     val iconStyle: IconStyle = IconStyle.THEMED_MONOCHROME,
@@ -41,5 +56,10 @@ data class LauncherSettings(
     val showClock: Boolean = true,
     val showDate: Boolean = true,
     val showBatteryAndAlarm: Boolean = true,
-    val waveOnLeftSide: Boolean = false
+    val waveOnLeftSide: Boolean = false,
+    val clockStyle: ClockStyle = ClockStyle.NIAGARA_CLEAN,
+    val clockFontSizeSp: Int = 54,        // range 32..72
+    val waveVisibility: WaveVisibility = WaveVisibility.ALWAYS_VISIBLE,
+    val waveHeightPercent: Int = 68,      // range 40..90
+    val waveLetterSizeSp: Int = 10        // range 8..14
 )
