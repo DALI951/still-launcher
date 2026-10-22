@@ -16,11 +16,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,7 +30,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -44,8 +41,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.niagaraclone.launcher.ui.theme.NiagaraBlue
-import com.niagaraclone.launcher.ui.theme.NiagaraBlueLight
+import com.niagaraclone.launcher.data.model.ThemePreset
 import com.niagaraclone.launcher.ui.theme.TextMuted
 import com.niagaraclone.launcher.ui.theme.TextPrimary
 import kotlin.math.PI
@@ -68,10 +64,15 @@ fun NiagaraWaveScroller(
     availableSymbols: Set<Char>,
     onSymbolSelected: (Char) -> Unit,
     onScrubbingStateChanged: (Boolean) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    themePreset: ThemePreset = ThemePreset.NIAGARA_BLUE,
+    isLeftSide: Boolean = false
 ) {
     val view = LocalView.current
     val density = LocalDensity.current
+
+    val themeAccent = Color(themePreset.accentHex)
+    val themeAccentLight = Color(themePreset.accentLightHex)
 
     var isTouching by remember { mutableStateOf(false) }
     var touchY by remember { mutableFloatStateOf(0f) }
@@ -143,23 +144,29 @@ fun NiagaraWaveScroller(
         val numSymbols = symbols.size.coerceAtLeast(1)
         val symbolSpacing = totalHeight / numSymbols
 
-        // Floating letter preview bubble appearing to the left of user's thumb
+        // Floating letter preview bubble appearing to the side of user's thumb
         AnimatedVisibility(
             visible = isTouching && activeIndex in symbols.indices,
             enter = scaleIn() + fadeIn(),
             exit = scaleOut() + fadeOut(),
-            modifier = Modifier.align(Alignment.TopEnd)
+            modifier = Modifier.align(if (isLeftSide) Alignment.TopStart else Alignment.TopEnd)
         ) {
             if (activeIndex in symbols.indices) {
                 val bubbleOffsetY = (touchY - with(density) { 32.dp.toPx() })
                     .coerceIn(0f, totalHeight - with(density) { 64.dp.toPx() })
 
+                val bubbleOffsetX = if (isLeftSide) {
+                    with(density) { 96.dp.roundToPx() }
+                } else {
+                    -with(density) { 96.dp.roundToPx() }
+                }
+
                 Box(
                     modifier = Modifier
-                        .offset { IntOffset(-with(density) { 96.dp.roundToPx() }, bubbleOffsetY.roundToInt()) }
+                        .offset { IntOffset(bubbleOffsetX, bubbleOffsetY.roundToInt()) }
                         .size(64.dp)
                         .shadow(12.dp, CircleShape)
-                        .background(NiagaraBlue, CircleShape),
+                        .background(themeAccent, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -181,7 +188,8 @@ fun NiagaraWaveScroller(
 
             // Mathematical raised-cosine distortion
             val cosFactor = ((1.0 + cos(PI * d_i)) / 2.0).toFloat()
-            val deltaX = -maxAmplitudePx * cosFactor * waveProgress
+            val rawDeltaX = maxAmplitudePx * cosFactor * waveProgress
+            val deltaX = if (isLeftSide) rawDeltaX else -rawDeltaX
 
             val sign = if (symbolCenterY >= touchY) 1f else -1f
             val deltaY = sign * maxSpreadPx * sin(PI * (1f - d_i)).toFloat() * waveProgress
@@ -192,7 +200,7 @@ fun NiagaraWaveScroller(
 
             val textColor = when {
                 isCurrent -> Color.White
-                waveProgress > 0.1f && d_i < 0.6f -> if (hasApps) NiagaraBlueLight else TextPrimary
+                waveProgress > 0.1f && d_i < 0.6f -> if (hasApps) themeAccentLight else TextPrimary
                 hasApps -> TextPrimary
                 else -> TextMuted
             }
@@ -209,7 +217,7 @@ fun NiagaraWaveScroller(
                         )
                     }
                     .size(width = 36.dp, height = with(density) { symbolSpacing.toDp() })
-                    .align(Alignment.TopEnd)
+                    .align(if (isLeftSide) Alignment.TopStart else Alignment.TopEnd)
                     .graphicsLayer {
                         scaleX = scale
                         scaleY = scale

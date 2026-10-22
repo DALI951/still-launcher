@@ -1,6 +1,7 @@
 package com.niagaraclone.launcher
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -23,6 +24,12 @@ import com.niagaraclone.launcher.ui.theme.NiagaraLauncherTheme
 class MainActivity : ComponentActivity() {
 
     private val viewModel: LauncherViewModel by viewModels()
+
+    private val homeRoleLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        viewModel.refreshPermissionsAndPendingInstall()
+    }
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -47,6 +54,11 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        // If not yet the default launcher, prompt the user immediately
+        if (!viewModel.permissionsManager.isCurrentDefaultLauncher()) {
+            promptSetDefaultLauncher()
+        }
+
         setContent {
             NiagaraLauncherTheme {
                 val uiState by viewModel.uiState.collectAsState()
@@ -59,7 +71,7 @@ class MainActivity : ComponentActivity() {
                         viewModel = viewModel,
                         uiState = uiState,
                         onRequestDefaultLauncher = {
-                            viewModel.permissionsManager.requestDefaultLauncherRole(this)
+                            promptSetDefaultLauncher()
                         },
                         onRequestUnknownSources = {
                             viewModel.permissionsManager.openUnknownSourcesSettings(this)
@@ -75,6 +87,28 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    private fun promptSetDefaultLauncher() {
+        val roleIntent = viewModel.permissionsManager.createHomeRoleIntent()
+        if (roleIntent != null) {
+            try {
+                homeRoleLauncher.launch(roleIntent)
+                return
+            } catch (ignored: Exception) {}
+        }
+        // Fallback to system home settings or show prompt dialog
+        viewModel.permissionsManager.openHomeSettings(this)
+    }
+
+    /**
+     * Triggered whenever the physical/gesture Home button is pressed while Niagara is already running.
+     * Returns immediately to the clean Favorites view and closes all sheets and search overlays.
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        viewModel.onHomeIntentReceived()
     }
 
     override fun onResume() {

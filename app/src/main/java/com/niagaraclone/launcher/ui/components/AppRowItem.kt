@@ -1,9 +1,16 @@
 package com.niagaraclone.launcher.ui.components
 
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffColorFilter
+import android.graphics.drawable.AdaptiveIconDrawable
 import android.graphics.drawable.Drawable
+import android.os.Build
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -14,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
@@ -31,6 +39,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.niagaraclone.launcher.data.model.AppInfo
+import com.niagaraclone.launcher.data.model.IconShape
+import com.niagaraclone.launcher.data.model.IconStyle
+import com.niagaraclone.launcher.data.model.LauncherSettings
 import com.niagaraclone.launcher.ui.theme.StarYellow
 import com.niagaraclone.launcher.ui.theme.TextPrimary
 import kotlin.math.roundToInt
@@ -39,6 +50,7 @@ import kotlin.math.roundToInt
 @Composable
 fun AppRowItem(
     app: AppInfo,
+    settings: LauncherSettings,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -47,28 +59,32 @@ fun AppRowItem(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(56.dp)
+            .height(settings.rowHeightDp.dp)
             .clip(CircleShape)
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
             )
-            .padding(horizontal = 24.dp, vertical = 6.dp),
+            .padding(
+                start = settings.edgePaddingDp.dp,
+                end = (settings.edgePaddingDp + 16).dp
+            ),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // App Icon
-        AppIcon(
+        // App Icon rendered using theme settings
+        ThemedAppIcon(
             drawable = app.icon,
-            modifier = Modifier.size(42.dp)
+            settings = settings,
+            modifier = Modifier.size(settings.iconSizeDp.dp)
         )
 
-        Spacer(modifier = Modifier.width(16.dp))
+        Spacer(modifier = Modifier.width(14.dp))
 
         // App Label
         Text(
             text = app.label,
             style = MaterialTheme.typography.bodyLarge.copy(
-                fontSize = 16.sp,
+                fontSize = settings.textSizeSp.sp,
                 fontWeight = FontWeight.Medium
             ),
             color = TextPrimary,
@@ -84,7 +100,7 @@ fun AppRowItem(
                 contentDescription = "Favorite",
                 tint = StarYellow,
                 modifier = Modifier
-                    .size(16.dp)
+                    .size(14.dp)
                     .padding(end = 4.dp)
             )
         }
@@ -92,27 +108,132 @@ fun AppRowItem(
 }
 
 @Composable
-fun AppIcon(
+fun ThemedAppIcon(
     drawable: Drawable?,
+    settings: LauncherSettings,
     modifier: Modifier = Modifier
 ) {
-    if (drawable != null) {
-        Canvas(modifier = modifier) {
-            drawIntoCanvas { canvas ->
-                drawable.setBounds(0, 0, size.width.roundToInt(), size.height.roundToInt())
-                drawable.draw(canvas.nativeCanvas)
+    val themeAccent = Color(settings.themePreset.accentHex)
+    val themeAccentLight = Color(settings.themePreset.accentLightHex)
+
+    when (settings.iconStyle) {
+        IconStyle.MINIMAL_DOTS -> {
+            // Sleek glowing minimalist Niagara dot
+            Box(
+                modifier = modifier,
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .background(themeAccentLight, CircleShape)
+                )
             }
         }
-    } else {
-        Box(
-            modifier = modifier.background(Color(0xFF2C323D), CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "•",
-                color = Color.White,
-                fontSize = 18.sp
-            )
+
+        IconStyle.THEMED_MONOCHROME, IconStyle.THEMED_DUOTONE -> {
+            val isDuotone = settings.iconStyle == IconStyle.THEMED_DUOTONE
+            val containerShape = when (settings.iconShape) {
+                IconShape.CIRCLE -> CircleShape
+                IconShape.SQUIRCLE -> RoundedCornerShape(30)
+                IconShape.BARE -> CircleShape
+            }
+
+            val containerModifier = if (settings.iconShape != IconShape.BARE) {
+                modifier
+                    .background(
+                        color = themeAccent.copy(alpha = if (isDuotone) 0.28f else 0.16f),
+                        shape = containerShape
+                    )
+                    .border(
+                        width = 1.dp,
+                        color = themeAccentLight.copy(alpha = 0.35f),
+                        shape = containerShape
+                    )
+                    .clip(containerShape)
+                    .padding(4.dp)
+            } else {
+                modifier
+            }
+
+            if (drawable != null) {
+                Canvas(modifier = containerModifier) {
+                    drawIntoCanvas { canvas ->
+                        val width = size.width.roundToInt()
+                        val height = size.height.roundToInt()
+
+                        // Android 13+ (API 33+) native monochrome layer if available
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                            drawable is AdaptiveIconDrawable &&
+                            drawable.monochrome != null
+                        ) {
+                            val mono = drawable.monochrome!!.mutate()
+                            mono.setBounds(0, 0, width, height)
+                            mono.colorFilter = PorterDuffColorFilter(
+                                settings.themePreset.accentLightHex.toInt(),
+                                PorterDuff.Mode.SRC_IN
+                            )
+                            mono.draw(canvas.nativeCanvas)
+                            mono.colorFilter = null
+                        } else {
+                            // High-quality desaturation + theme accent multiplier
+                            val tint = settings.themePreset.accentLightHex
+                            val r = ((tint shr 16) and 0xFF) / 255f
+                            val g = ((tint shr 8) and 0xFF) / 255f
+                            val b = (tint and 0xFF) / 255f
+
+                            val matrix = ColorMatrix(
+                                floatArrayOf(
+                                    0.33f * r, 0.59f * r, 0.11f * r, 0f, 0f,
+                                    0.33f * g, 0.59f * g, 0.11f * g, 0f, 0f,
+                                    0.33f * b, 0.59f * b, 0.11f * b, 0f, 0f,
+                                    0f, 0f, 0f, 1f, 0f
+                                )
+                            )
+                            drawable.setBounds(0, 0, width, height)
+                            drawable.colorFilter = ColorMatrixColorFilter(matrix)
+                            drawable.draw(canvas.nativeCanvas)
+                            drawable.colorFilter = null
+                        }
+                    }
+                }
+            } else {
+                Box(
+                    modifier = containerModifier,
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .background(themeAccentLight, CircleShape)
+                    )
+                }
+            }
+        }
+
+        IconStyle.ORIGINAL -> {
+            val clipShape = when (settings.iconShape) {
+                IconShape.CIRCLE -> CircleShape
+                IconShape.SQUIRCLE -> RoundedCornerShape(26)
+                IconShape.BARE -> null
+            }
+            val originalModifier = if (clipShape != null) modifier.clip(clipShape) else modifier
+
+            if (drawable != null) {
+                Canvas(modifier = originalModifier) {
+                    drawIntoCanvas { canvas ->
+                        drawable.setBounds(0, 0, size.width.roundToInt(), size.height.roundToInt())
+                        drawable.draw(canvas.nativeCanvas)
+                    }
+                }
+            } else {
+                Box(
+                    modifier = originalModifier.background(Color(0xFF2C323D), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(text = "•", color = Color.White, fontSize = 16.sp)
+                }
+            }
         }
     }
 }

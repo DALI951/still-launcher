@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.niagaraclone.launcher.R
 import com.niagaraclone.launcher.data.model.AppInfo
+import com.niagaraclone.launcher.data.model.LauncherSettings
 import com.niagaraclone.launcher.ui.theme.NiagaraBlue
 import com.niagaraclone.launcher.ui.theme.ScrimDark
 import com.niagaraclone.launcher.ui.theme.TextMuted
@@ -63,7 +64,8 @@ fun AppSearchOverlay(
     onDismiss: () -> Unit,
     onAppClick: (AppInfo) -> Unit,
     onAppLongClick: (AppInfo) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    settings: LauncherSettings = LauncherSettings()
 ) {
     val focusRequester = remember { FocusRequester() }
 
@@ -177,6 +179,7 @@ fun AppSearchOverlay(
                         ) { app ->
                             AppRowItem(
                                 app = app,
+                                settings = settings,
                                 onClick = { onAppClick(app) },
                                 onLongClick = { onAppLongClick(app) },
                                 showFavoriteStar = true

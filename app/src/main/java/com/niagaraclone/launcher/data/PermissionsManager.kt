@@ -1,7 +1,6 @@
 package com.niagaraclone.launcher.data
 
 import android.Manifest
-import android.app.Activity
 import android.app.role.RoleManager
 import android.content.Context
 import android.content.Intent
@@ -71,25 +70,42 @@ class PermissionsManager(private val context: Context) {
         return currentPackage == context.packageName
     }
 
-    fun requestDefaultLauncherRole(activity: Activity) {
+    /**
+     * Creates the Android 10+ RoleManager Intent to request the ROLE_HOME.
+     * MUST be launched with startActivityForResult / ActivityResultLauncher to avoid RequestRoleActivity aborting!
+     */
+    fun createHomeRoleIntent(): Intent? {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && roleManager != null) {
             if (roleManager.isRoleAvailable(RoleManager.ROLE_HOME) && !roleManager.isRoleHeld(RoleManager.ROLE_HOME)) {
-                try {
-                    val intent = roleManager.createRequestRoleIntent(RoleManager.ROLE_HOME)
-                    activity.startActivity(intent)
-                    return
-                } catch (ignored: Exception) {}
+                return try {
+                    roleManager.createRequestRoleIntent(RoleManager.ROLE_HOME)
+                } catch (e: Exception) {
+                    null
+                }
             }
         }
+        return null
+    }
 
-        // Fallback to Home settings
+    /**
+     * Fallback to direct Android System Home Settings or launcher chooser.
+     */
+    fun openHomeSettings(context: Context) {
         try {
             val intent = Intent(Settings.ACTION_HOME_SETTINGS).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-            activity.startActivity(intent)
+            context.startActivity(intent)
         } catch (e: Exception) {
-            openAppSettings(activity)
+            try {
+                val chooser = Intent(Intent.ACTION_MAIN).apply {
+                    addCategory(Intent.CATEGORY_HOME)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(chooser)
+            } catch (ignored: Exception) {
+                openAppSettings(context)
+            }
         }
     }
 

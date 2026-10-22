@@ -6,11 +6,17 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.niagaraclone.launcher.data.model.IconShape
+import com.niagaraclone.launcher.data.model.IconStyle
+import com.niagaraclone.launcher.data.model.LauncherSettings
+import com.niagaraclone.launcher.data.model.ThemePreset
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.io.IOException
 
@@ -22,6 +28,21 @@ class PreferencesRepository(private val context: Context) {
         val FAVORITE_KEYS_ORDERED = stringPreferencesKey("favorite_keys_ordered")
         val HIDDEN_KEYS = stringSetPreferencesKey("hidden_keys")
         val IS_INITIAL_SEEDED = booleanPreferencesKey("is_initial_seeded")
+
+        // Phase 5 Customization & Sizing Settings
+        val SETTING_ICON_SIZE = intPreferencesKey("setting_icon_size")
+        val SETTING_ICON_STYLE = stringPreferencesKey("setting_icon_style")
+        val SETTING_ICON_SHAPE = stringPreferencesKey("setting_icon_shape")
+        val SETTING_THEME_PRESET = stringPreferencesKey("setting_theme_preset")
+        val SETTING_EDGE_PADDING = intPreferencesKey("setting_edge_padding")
+        val SETTING_ROW_HEIGHT = intPreferencesKey("setting_row_height")
+        val SETTING_TEXT_SIZE = intPreferencesKey("setting_text_size")
+        val SETTING_FAV_TOP_OFFSET = intPreferencesKey("setting_fav_top_offset")
+        val SETTING_SCRIM_OPACITY = intPreferencesKey("setting_scrim_opacity")
+        val SETTING_SHOW_CLOCK = booleanPreferencesKey("setting_show_clock")
+        val SETTING_SHOW_DATE = booleanPreferencesKey("setting_show_date")
+        val SETTING_SHOW_BATTERY_ALARM = booleanPreferencesKey("setting_show_battery_alarm")
+        val SETTING_WAVE_LEFT_SIDE = booleanPreferencesKey("setting_wave_left_side")
     }
 
     private val dataStore = context.launcherDataStore
@@ -75,6 +96,97 @@ class PreferencesRepository(private val context: Context) {
         .map { preferences ->
             preferences[PreferencesKeys.IS_INITIAL_SEEDED] ?: false
         }
+
+    /**
+     * Flow of user customization settings.
+     */
+    val settingsFlow: Flow<LauncherSettings> = dataStore.data
+        .catch { exception ->
+            if (exception is IOException) {
+                emit(emptyPreferences())
+            } else {
+                throw exception
+            }
+        }
+        .map { prefs ->
+            val iconSize = prefs[PreferencesKeys.SETTING_ICON_SIZE] ?: 26
+            val iconStyleName = prefs[PreferencesKeys.SETTING_ICON_STYLE] ?: IconStyle.THEMED_MONOCHROME.name
+            val iconStyle = try { IconStyle.valueOf(iconStyleName) } catch (e: Exception) { IconStyle.THEMED_MONOCHROME }
+            val iconShapeName = prefs[PreferencesKeys.SETTING_ICON_SHAPE] ?: IconShape.CIRCLE.name
+            val iconShape = try { IconShape.valueOf(iconShapeName) } catch (e: Exception) { IconShape.CIRCLE }
+            val themePresetName = prefs[PreferencesKeys.SETTING_THEME_PRESET] ?: ThemePreset.NIAGARA_BLUE.name
+            val themePreset = try { ThemePreset.valueOf(themePresetName) } catch (e: Exception) { ThemePreset.NIAGARA_BLUE }
+            val edgePadding = prefs[PreferencesKeys.SETTING_EDGE_PADDING] ?: 44
+            val rowHeight = prefs[PreferencesKeys.SETTING_ROW_HEIGHT] ?: 46
+            val textSize = prefs[PreferencesKeys.SETTING_TEXT_SIZE] ?: 15
+            val favTopOffset = prefs[PreferencesKeys.SETTING_FAV_TOP_OFFSET] ?: 56
+            val scrimOpacity = prefs[PreferencesKeys.SETTING_SCRIM_OPACITY] ?: 55
+            val showClock = prefs[PreferencesKeys.SETTING_SHOW_CLOCK] ?: true
+            val showDate = prefs[PreferencesKeys.SETTING_SHOW_DATE] ?: true
+            val showBatteryAlarm = prefs[PreferencesKeys.SETTING_SHOW_BATTERY_ALARM] ?: true
+            val waveLeftSide = prefs[PreferencesKeys.SETTING_WAVE_LEFT_SIDE] ?: false
+
+            LauncherSettings(
+                iconSizeDp = iconSize,
+                iconStyle = iconStyle,
+                iconShape = iconShape,
+                themePreset = themePreset,
+                edgePaddingDp = edgePadding,
+                rowHeightDp = rowHeight,
+                textSizeSp = textSize,
+                favoritesTopOffsetDp = favTopOffset,
+                scrimOpacityPercent = scrimOpacity,
+                showClock = showClock,
+                showDate = showDate,
+                showBatteryAndAlarm = showBatteryAlarm,
+                waveOnLeftSide = waveLeftSide
+            )
+        }
+
+    /**
+     * Updates launcher settings via a transform lambda.
+     */
+    suspend fun updateSettings(transform: (LauncherSettings) -> LauncherSettings) {
+        val current = settingsFlow.first()
+        val updated = transform(current)
+
+        dataStore.edit { prefs ->
+            prefs[PreferencesKeys.SETTING_ICON_SIZE] = updated.iconSizeDp
+            prefs[PreferencesKeys.SETTING_ICON_STYLE] = updated.iconStyle.name
+            prefs[PreferencesKeys.SETTING_ICON_SHAPE] = updated.iconShape.name
+            prefs[PreferencesKeys.SETTING_THEME_PRESET] = updated.themePreset.name
+            prefs[PreferencesKeys.SETTING_EDGE_PADDING] = updated.edgePaddingDp
+            prefs[PreferencesKeys.SETTING_ROW_HEIGHT] = updated.rowHeightDp
+            prefs[PreferencesKeys.SETTING_TEXT_SIZE] = updated.textSizeSp
+            prefs[PreferencesKeys.SETTING_FAV_TOP_OFFSET] = updated.favoritesTopOffsetDp
+            prefs[PreferencesKeys.SETTING_SCRIM_OPACITY] = updated.scrimOpacityPercent
+            prefs[PreferencesKeys.SETTING_SHOW_CLOCK] = updated.showClock
+            prefs[PreferencesKeys.SETTING_SHOW_DATE] = updated.showDate
+            prefs[PreferencesKeys.SETTING_SHOW_BATTERY_ALARM] = updated.showBatteryAndAlarm
+            prefs[PreferencesKeys.SETTING_WAVE_LEFT_SIDE] = updated.waveOnLeftSide
+        }
+    }
+
+    /**
+     * Resets all visual and ergonomic settings to default Niagara layout.
+     */
+    suspend fun resetSettingsToDefault() {
+        dataStore.edit { prefs ->
+            prefs.remove(PreferencesKeys.SETTING_ICON_SIZE)
+            prefs.remove(PreferencesKeys.SETTING_ICON_STYLE)
+            prefs.remove(PreferencesKeys.SETTING_ICON_SHAPE)
+            prefs.remove(PreferencesKeys.SETTING_THEME_PRESET)
+            prefs.remove(PreferencesKeys.SETTING_EDGE_PADDING)
+            prefs.remove(PreferencesKeys.SETTING_ROW_HEIGHT)
+            prefs.remove(PreferencesKeys.SETTING_TEXT_SIZE)
+            prefs.remove(PreferencesKeys.SETTING_FAV_TOP_OFFSET)
+            prefs.remove(PreferencesKeys.SETTING_SCRIM_OPACITY)
+            prefs.remove(PreferencesKeys.SETTING_SHOW_CLOCK)
+            prefs.remove(PreferencesKeys.SETTING_SHOW_DATE)
+            prefs.remove(PreferencesKeys.SETTING_SHOW_BATTERY_ALARM)
+            prefs.remove(PreferencesKeys.SETTING_WAVE_LEFT_SIDE)
+        }
+    }
 
     /**
      * Sets or overrides the complete list of favorites in exact order.

@@ -1,8 +1,12 @@
 package com.niagaraclone.launcher.ui.components
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,18 +27,24 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.CloudDownload
+import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material.icons.outlined.SystemUpdate
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -42,30 +52,27 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.niagaraclone.launcher.R
+import com.niagaraclone.launcher.data.ReleaseInfo
 import com.niagaraclone.launcher.data.model.AppInfo
 import com.niagaraclone.launcher.ui.LauncherUiState
 import com.niagaraclone.launcher.ui.LauncherViewModel
 import com.niagaraclone.launcher.ui.UpdateUiState
-import com.niagaraclone.launcher.ui.theme.NiagaraBlue
-import com.niagaraclone.launcher.ui.theme.NiagaraBlueLight
-import com.niagaraclone.launcher.ui.theme.ScrimDark
-import com.niagaraclone.launcher.ui.theme.ScrimLight
-import com.niagaraclone.launcher.ui.theme.TextMuted
 import com.niagaraclone.launcher.ui.theme.TextPrimary
 import com.niagaraclone.launcher.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
+import java.io.File
 import kotlin.math.abs
 
 /**
- * Main Home Screen combining wallpaper scrim, AtAGlanceHeader, Updates/Setup Banner,
- * Favorites, Alphabetical App List, and the signature Niagara Wave Scroller.
+ * Main Home Screen with authentic Niagara two-mode layout:
+ * - Mode 1 (Default): Favorites-only ergonomic home screen
+ * - Mode 2: Alphabetical All-Apps list activated via Wave Scroller or "All Apps" pill
  */
 @Composable
 fun LauncherHomeScreen(
@@ -78,20 +85,29 @@ fun LauncherHomeScreen(
 ) {
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
+    val settings = uiState.settings
+    val themeAccent = Color(settings.themePreset.accentHex)
+    val themeAccentLight = Color(settings.themePreset.accentLightHex)
 
     // Back button handling
     BackHandler(
         enabled = uiState.isSearchActive ||
                 uiState.isManageAppsActive ||
+                uiState.isSettingsSheetActive ||
                 uiState.isUpdateSheetActive ||
+                uiState.isDefaultPromptDialogVisible ||
                 uiState.selectedAppForMenu != null ||
+                uiState.isAllAppsVisible ||
                 listState.firstVisibleItemIndex > 0
     ) {
         when {
             uiState.isSearchActive -> viewModel.setSearchActive(false)
             uiState.isManageAppsActive -> viewModel.setManageAppsActive(false)
+            uiState.isSettingsSheetActive -> viewModel.setSettingsSheetActive(false)
             uiState.isUpdateSheetActive -> viewModel.setUpdateSheetActive(false)
+            uiState.isDefaultPromptDialogVisible -> viewModel.setDefaultPromptDialogVisible(false)
             uiState.selectedAppForMenu != null -> viewModel.closeAppContextMenu()
+            uiState.isAllAppsVisible -> viewModel.setAllAppsVisible(false)
             listState.firstVisibleItemIndex > 0 -> {
                 coroutineScope.launch {
                     listState.animateScrollToItem(0)
@@ -100,16 +116,16 @@ fun LauncherHomeScreen(
         }
     }
 
-    // Build unique list items and section index map for the LazyColumn
-    val (listItems, sectionIndexMap) = remember(uiState.favoriteApps, uiState.allApps) {
-        buildListItemsAndIndices(uiState.favoriteApps, uiState.allApps)
+    // Build unique alphabetical list items and section index map for All Apps mode
+    val (allAppItems, sectionIndexMap) = remember(uiState.allApps) {
+        buildAllAppItemsAndIndices(uiState.allApps)
     }
 
-    // React to wave scrubbing symbol changes with nearest-letter snapping
+    // React to wave scrubbing symbol changes
     LaunchedEffect(uiState.selectedSectionSymbol) {
         val symbol = uiState.selectedSectionSymbol ?: return@LaunchedEffect
         if (symbol == '★') {
-            listState.scrollToItem(0)
+            viewModel.setAllAppsVisible(false)
         } else {
             val targetIndex = sectionIndexMap[symbol] ?: run {
                 val availableLetters = sectionIndexMap.keys.sorted()
@@ -122,106 +138,224 @@ fun LauncherHomeScreen(
         }
     }
 
+    // Base wallpaper scrim
+    val scrimColor = Color(settings.themePreset.scrimBaseHex).copy(
+        alpha = settings.scrimOpacityPercent / 100f
+    )
+
     Box(
         modifier = modifier
             .fillMaxSize()
-            // Gradient scrim for contrast over system wallpapers
-            .background(
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        ScrimLight,
-                        Color(0x33000000),
-                        ScrimDark
-                    )
-                )
-            )
+            .background(scrimColor)
     ) {
-        // Main App List & Header
-        LazyColumn(
-            state = listState,
-            contentPadding = PaddingValues(
-                top = 28.dp,
-                bottom = 120.dp
-            ),
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-        ) {
-            // Header: Minimalist Clock, Date & Status
-            item(key = "header_at_a_glance") {
-                AtAGlanceHeader(
-                    systemStatus = uiState.systemStatus,
-                    modifier = Modifier.padding(bottom = 4.dp)
-                )
-            }
+        if (!uiState.isAllAppsVisible) {
+            // ==========================================
+            // MODE 1: PURE NIAGARA FAVORITES HOME SCREEN
+            // ==========================================
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding(),
+                contentPadding = PaddingValues(bottom = 120.dp)
+            ) {
+                // Configurable top spacer to position favorites in ergonomic thumb reach
+                item(key = "fav_top_spacer") {
+                    Spacer(modifier = Modifier.height(settings.favoritesTopOffsetDp.dp))
+                }
 
-            // Optional Interactive Banner: Update Available or Setup Needed
-            item(key = "header_update_banner") {
-                HomeStatusBanner(
-                    updateState = uiState.updateState,
-                    hasEssentialPermissions = uiState.permissionsState.allEssentialGranted,
-                    onOpenUpdateSheet = { viewModel.setUpdateSheetActive(true) },
-                    onDownloadUpdate = { viewModel.downloadUpdate(it) },
-                    onInstallUpdate = { viewModel.installDownloadedApk(it) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 6.dp)
-                        .padding(end = 48.dp)
-                )
-            }
-
-            // Flattened list items with section-prefixed unique keys
-            items(
-                count = listItems.size,
-                key = { index -> listItems[index].key }
-            ) { index ->
-                when (val item = listItems[index]) {
-                    is HomeScreenListItem.FavoriteAppItem -> {
-                        AppRowItem(
-                            app = item.app,
-                            onClick = { viewModel.launchApp(item.app) },
-                            onLongClick = { viewModel.openAppContextMenu(item.app) },
-                            showFavoriteStar = false,
-                            modifier = Modifier.padding(end = 48.dp)
-                        )
-                    }
-                    is HomeScreenListItem.AllAppItem -> {
-                        AppRowItem(
-                            app = item.app,
-                            onClick = { viewModel.launchApp(item.app) },
-                            onLongClick = { viewModel.openAppContextMenu(item.app) },
-                            showFavoriteStar = false,
-                            modifier = Modifier.padding(end = 48.dp)
-                        )
-                    }
-                    is HomeScreenListItem.SectionHeader -> {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(start = 28.dp, top = 20.dp, bottom = 6.dp, end = 48.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = item.title,
-                                style = MaterialTheme.typography.titleMedium.copy(
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
-                                ),
-                                color = NiagaraBlue
+                // Header: Minimalist Clock, Date & Status
+                item(key = "header_at_a_glance") {
+                    AtAGlanceHeader(
+                        systemStatus = uiState.systemStatus,
+                        settings = settings,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                start = settings.edgePaddingDp.dp,
+                                end = (settings.edgePaddingDp + 16).dp
                             )
+                    )
+                }
+
+                // Optional Interactive Banner: Updates or Setup
+                item(key = "header_status_banner") {
+                    HomeStatusBanner(
+                        updateState = uiState.updateState,
+                        hasEssentialPermissions = uiState.permissionsState.allEssentialGranted,
+                        onOpenUpdateSheet = { viewModel.setUpdateSheetActive(true) },
+                        onDownloadUpdate = { viewModel.downloadUpdate(it) },
+                        onInstallUpdate = { viewModel.installDownloadedApk(it) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                start = settings.edgePaddingDp.dp,
+                                end = (settings.edgePaddingDp + 20).dp,
+                                top = 4.dp,
+                                bottom = 8.dp
+                            )
+                    )
+                }
+
+                // ONLY Favorites apps on the Home Screen
+                items(
+                    count = uiState.favoriteApps.size,
+                    key = { index -> "fav_${uiState.favoriteApps[index].uniqueKey}" }
+                ) { index ->
+                    val app = uiState.favoriteApps[index]
+                    AppRowItem(
+                        app = app,
+                        settings = settings,
+                        onClick = { viewModel.launchApp(app) },
+                        onLongClick = { viewModel.openAppContextMenu(app) },
+                        showFavoriteStar = false
+                    )
+                }
+
+                // Quick Chip to open All Apps
+                item(key = "open_all_apps_chip") {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                start = settings.edgePaddingDp.dp,
+                                top = 16.dp,
+                                bottom = 24.dp
+                            )
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = Color(0x33FFFFFF),
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .clickable { viewModel.setAllAppsVisible(true) }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = "All Apps",
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium
+                                    ),
+                                    color = themeAccentLight
+                                )
+                                Text(
+                                    text = "• ${uiState.allApps.size}",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                                    color = TextSecondary
+                                )
+                            }
                         }
                     }
-                    is HomeScreenListItem.DividerItem -> {
-                        Spacer(modifier = Modifier.height(16.dp))
+                }
+            }
+        } else {
+            // ==========================================
+            // MODE 2: ALPHABETICAL ALL-APPS VIEW
+            // ==========================================
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding(),
+                contentPadding = PaddingValues(top = 16.dp, bottom = 120.dp)
+            ) {
+                // Return to Favorites chip at top
+                item(key = "back_to_favorites_header") {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                start = settings.edgePaddingDp.dp,
+                                end = (settings.edgePaddingDp + 16).dp,
+                                top = 8.dp,
+                                bottom = 12.dp
+                            ),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = themeAccent.copy(alpha = 0.25f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, themeAccentLight.copy(alpha = 0.4f)),
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .clickable { viewModel.setAllAppsVisible(false) }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Star,
+                                    contentDescription = null,
+                                    tint = themeAccentLight,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Text(
+                                    text = "Favorites",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp
+                                    ),
+                                    color = Color.White
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Alphabetical items (Section headers + Apps)
+                items(
+                    count = allAppItems.size,
+                    key = { index -> allAppItems[index].key }
+                ) { index ->
+                    when (val item = allAppItems[index]) {
+                        is AllAppListItem.AppItem -> {
+                            AppRowItem(
+                                app = item.app,
+                                settings = settings,
+                                onClick = { viewModel.launchApp(item.app) },
+                                onLongClick = { viewModel.openAppContextMenu(item.app) },
+                                showFavoriteStar = item.app.isFavorite
+                            )
+                        }
+                        is AllAppListItem.SectionHeader -> {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(
+                                        start = settings.edgePaddingDp.dp,
+                                        top = 18.dp,
+                                        bottom = 6.dp,
+                                        end = (settings.edgePaddingDp + 16).dp
+                                    ),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = item.title,
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold
+                                    ),
+                                    color = themeAccentLight
+                                )
+                            }
+                        }
                     }
                 }
             }
         }
 
-        // Right Edge: Niagara Wave Alphabet Scroller
+        // Niagara Wave Alphabet Scroller (Positioned according to waveOnLeftSide setting)
         NiagaraWaveScroller(
             symbols = uiState.alphabetSymbols,
             availableSymbols = uiState.availableSymbols,
+            themePreset = settings.themePreset,
+            isLeftSide = settings.waveOnLeftSide,
             onSymbolSelected = { symbol ->
                 viewModel.onWaveScrubSymbolChanged(symbol)
             },
@@ -233,18 +367,22 @@ fun LauncherHomeScreen(
                 }
             },
             modifier = Modifier
-                .align(Alignment.CenterEnd)
+                .align(if (settings.waveOnLeftSide) Alignment.CenterStart else Alignment.CenterEnd)
                 .statusBarsPadding()
                 .navigationBarsPadding()
-                .padding(vertical = 40.dp)
+                .padding(vertical = 36.dp)
         )
 
-        // Bottom Ergonomic Quick Actions Pill (Search, Manage, Updates)
+        // Bottom Ergonomic Quick Actions Pill (Search, Customize, Manage, Updates)
         Row(
             modifier = Modifier
-                .align(Alignment.BottomStart)
+                .align(if (settings.waveOnLeftSide) Alignment.BottomEnd else Alignment.BottomStart)
                 .navigationBarsPadding()
-                .padding(start = 20.dp, bottom = 20.dp),
+                .padding(
+                    start = if (settings.waveOnLeftSide) 20.dp else settings.edgePaddingDp.dp,
+                    end = if (settings.waveOnLeftSide) settings.edgePaddingDp.dp else 20.dp,
+                    bottom = 20.dp
+                ),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -258,7 +396,7 @@ fun LauncherHomeScreen(
                     .clickable { viewModel.setSearchActive(true) }
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -266,12 +404,34 @@ fun LauncherHomeScreen(
                         imageVector = Icons.Outlined.Search,
                         contentDescription = "Search",
                         tint = TextSecondary,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(17.dp)
                     )
                     Text(
                         text = stringResource(R.string.search_hint),
-                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
+                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
                         color = TextSecondary
+                    )
+                }
+            }
+
+            // Customize Settings Button
+            Surface(
+                shape = CircleShape,
+                color = Color(0x55000000),
+                contentColor = TextSecondary,
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable { viewModel.setSettingsSheetActive(true) }
+            ) {
+                Box(
+                    modifier = Modifier.padding(10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Palette,
+                        contentDescription = "Customize Niagara",
+                        tint = themeAccentLight,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
@@ -298,14 +458,14 @@ fun LauncherHomeScreen(
                 }
             }
 
-            // Updates & Permissions Setup Pill
+            // Updates & Setup Pill
             val hasUpdateNotice = uiState.updateState is UpdateUiState.UpdateAvailable ||
                     uiState.updateState is UpdateUiState.ReadyToInstall ||
                     !uiState.permissionsState.allEssentialGranted
 
             Surface(
                 shape = CircleShape,
-                color = if (hasUpdateNotice) Color(0x771E5CCB) else Color(0x55000000),
+                color = if (hasUpdateNotice) themeAccent.copy(alpha = 0.5f) else Color(0x55000000),
                 contentColor = if (hasUpdateNotice) Color.White else TextSecondary,
                 modifier = Modifier
                     .clip(CircleShape)
@@ -322,7 +482,7 @@ fun LauncherHomeScreen(
                             Icons.Outlined.CloudDownload
                         },
                         contentDescription = "Updates & Setup",
-                        tint = if (hasUpdateNotice) NiagaraBlueLight else TextSecondary,
+                        tint = if (hasUpdateNotice) Color.White else TextSecondary,
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -342,7 +502,8 @@ fun LauncherHomeScreen(
             },
             onAppLongClick = { app ->
                 viewModel.openAppContextMenu(app)
-            }
+            },
+            settings = settings
         )
 
         // Context Menu Modal Sheet
@@ -360,7 +521,7 @@ fun LauncherHomeScreen(
             )
         }
 
-        // Manage Apps Sheet (Favorites & Hidden Apps)
+        // Manage Apps Sheet
         if (uiState.isManageAppsActive) {
             ManageAppsSheet(
                 favoriteApps = uiState.favoriteApps,
@@ -373,7 +534,7 @@ fun LauncherHomeScreen(
             )
         }
 
-        // Updates & Permissions Setup Sheet
+        // Updates & Setup Sheet
         if (uiState.isUpdateSheetActive) {
             UpdateAndPermissionsSheet(
                 updateState = uiState.updateState,
@@ -387,7 +548,96 @@ fun LauncherHomeScreen(
                 onRequestNotifications = onRequestNotifications
             )
         }
+
+        // Live Customization & Settings Sheet
+        if (uiState.isSettingsSheetActive) {
+            LauncherSettingsSheet(
+                settings = settings,
+                onDismissRequest = { viewModel.setSettingsSheetActive(false) },
+                onUpdateSettings = { viewModel.updateSettings(it) },
+                onResetDefaults = { viewModel.resetSettingsToDefault() }
+            )
+        }
+
+        // Default Launcher Prompt Dialog (if Niagara is not currently default home app)
+        if (uiState.isDefaultPromptDialogVisible) {
+            AlertDialog(
+                onDismissRequest = { viewModel.setDefaultPromptDialogVisible(false) },
+                containerColor = Color(0xFA1E222A),
+                title = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Security,
+                            contentDescription = null,
+                            tint = themeAccentLight,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Text(
+                            text = "Set as Default Home App",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = TextPrimary
+                        )
+                    }
+                },
+                text = {
+                    Text(
+                        text = "To use Niagara Launcher whenever you press the Home button or swipe up, set it as your default home app.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            viewModel.setDefaultPromptDialogVisible(false)
+                            onRequestDefaultLauncher()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = themeAccent)
+                    ) {
+                        Text("Set as Default Home App", fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { viewModel.setDefaultPromptDialogVisible(false) }) {
+                        Text("Later", color = TextSecondary)
+                    }
+                }
+            )
+        }
     }
+}
+
+private sealed class AllAppListItem(val key: String) {
+    data class AppItem(val app: AppInfo) : AllAppListItem("all_${app.uniqueKey}")
+    data class SectionHeader(val title: String) : AllAppListItem("header_$title")
+}
+
+private fun buildAllAppItemsAndIndices(
+    allApps: List<AppInfo>
+): Pair<List<AllAppListItem>, Map<Char, Int>> {
+    val items = mutableListOf<AllAppListItem>()
+    val sectionIndices = mutableMapOf<Char, Int>()
+
+    val headerOffset = 1 // Item 0 is the "Back to Favorites" header
+
+    var currentLetter: Char? = null
+    allApps.forEach { app ->
+        val letter = app.sectionLetter
+        if (letter != currentLetter) {
+            currentLetter = letter
+            val headerIndex = items.size + headerOffset
+            items.add(AllAppListItem.SectionHeader(letter.toString()))
+            if (!sectionIndices.containsKey(letter)) {
+                sectionIndices[letter] = headerIndex
+            }
+        }
+        items.add(AllAppListItem.AppItem(app))
+    }
+
+    return Pair(items, sectionIndices)
 }
 
 @Composable
@@ -395,37 +645,37 @@ private fun HomeStatusBanner(
     updateState: UpdateUiState,
     hasEssentialPermissions: Boolean,
     onOpenUpdateSheet: () -> Unit,
-    onDownloadUpdate: (com.niagaraclone.launcher.data.ReleaseInfo) -> Unit,
-    onInstallUpdate: (java.io.File) -> Unit,
+    onDownloadUpdate: (ReleaseInfo) -> Unit,
+    onInstallUpdate: (File) -> Unit,
     modifier: Modifier = Modifier
 ) {
     when (updateState) {
         is UpdateUiState.ReadyToInstall -> {
             Surface(
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(14.dp),
                 color = Color(0x444CAF50),
                 modifier = modifier.clickable { onInstallUpdate(updateState.apkFile) }
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Filled.CheckCircle,
                         contentDescription = null,
                         tint = Color(0xFF4CAF50),
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "Update downloaded: ${updateState.releaseInfo.tagName}",
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, fontSize = 13.sp),
                             color = TextPrimary
                         )
                         Text(
                             text = "Tap to install now",
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                             color = Color(0xFF81C784)
                         )
                     }
@@ -434,11 +684,11 @@ private fun HomeStatusBanner(
         }
         is UpdateUiState.Downloading -> {
             Surface(
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(14.dp),
                 color = Color(0x33FFFFFF),
                 modifier = modifier.clickable(onClick = onOpenUpdateSheet)
             ) {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -446,23 +696,23 @@ private fun HomeStatusBanner(
                     ) {
                         Text(
                             text = "Downloading ${updateState.releaseInfo.tagName}…",
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium, fontSize = 13.sp),
                             color = TextPrimary
                         )
                         Text(
                             text = "${updateState.progressPercent}%",
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                            color = NiagaraBlueLight
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, fontSize = 12.sp),
+                            color = Color.White
                         )
                     }
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     LinearProgressIndicator(
                         progress = { updateState.progressPercent / 100f },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(4.dp)
                             .clip(CircleShape),
-                        color = NiagaraBlue,
+                        color = Color(0xFF4E8CFF),
                         trackColor = Color(0x22FFFFFF)
                     )
                 }
@@ -470,30 +720,30 @@ private fun HomeStatusBanner(
         }
         is UpdateUiState.UpdateAvailable -> {
             Surface(
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(14.dp),
                 color = Color(0x441E5CCB),
                 modifier = modifier.clickable(onClick = onOpenUpdateSheet)
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.SystemUpdate,
                         contentDescription = null,
-                        tint = NiagaraBlueLight,
-                        modifier = Modifier.size(20.dp)
+                        tint = Color(0xFF99C2FF),
+                        modifier = Modifier.size(18.dp)
                     )
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "New version available: ${updateState.releaseInfo.tagName}",
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, fontSize = 13.sp),
                             color = TextPrimary
                         )
                         Text(
-                            text = "Tap to view release notes & download",
-                            style = MaterialTheme.typography.bodySmall,
+                            text = "Tap to download & install",
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                             color = TextSecondary
                         )
                     }
@@ -503,30 +753,30 @@ private fun HomeStatusBanner(
         else -> {
             if (!hasEssentialPermissions) {
                 Surface(
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(14.dp),
                     color = Color(0x33FFFFFF),
                     modifier = modifier.clickable(onClick = onOpenUpdateSheet)
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Security,
                             contentDescription = null,
-                            tint = NiagaraBlueLight,
-                            modifier = Modifier.size(20.dp)
+                            tint = Color(0xFF99C2FF),
+                            modifier = Modifier.size(18.dp)
                         )
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = "Setup Niagara Launcher",
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, fontSize = 13.sp),
                                 color = TextPrimary
                             )
                             Text(
                                 text = "Set default home app & allow in-app updates",
-                                style = MaterialTheme.typography.bodySmall,
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                                 color = TextSecondary
                             )
                         }
@@ -535,49 +785,4 @@ private fun HomeStatusBanner(
             }
         }
     }
-}
-
-/**
- * List item model for the Home Screen LazyColumn with section-prefixed keys.
- */
-private sealed class HomeScreenListItem(val key: String) {
-    data class FavoriteAppItem(val app: AppInfo) : HomeScreenListItem("fav_${app.uniqueKey}")
-    data class AllAppItem(val app: AppInfo) : HomeScreenListItem("all_${app.uniqueKey}")
-    data class SectionHeader(val title: String) : HomeScreenListItem("header_$title")
-    data class DividerItem(val id: String) : HomeScreenListItem("divider_$id")
-}
-
-private fun buildListItemsAndIndices(
-    favoriteApps: List<AppInfo>,
-    allApps: List<AppInfo>
-): Pair<List<HomeScreenListItem>, Map<Char, Int>> {
-    val items = mutableListOf<HomeScreenListItem>()
-    val sectionIndices = mutableMapOf<Char, Int>()
-
-    val headerOffset = 2 // item 0 is AtAGlanceHeader, item 1 is StatusBanner
-
-    // Favorites section
-    if (favoriteApps.isNotEmpty()) {
-        favoriteApps.forEach { app ->
-            items.add(HomeScreenListItem.FavoriteAppItem(app))
-        }
-        items.add(HomeScreenListItem.DividerItem("favorites_end"))
-    }
-
-    // Alphabetical sections
-    var currentLetter: Char? = null
-    allApps.forEach { app ->
-        val letter = app.sectionLetter
-        if (letter != currentLetter) {
-            currentLetter = letter
-            val headerIndex = items.size + headerOffset
-            items.add(HomeScreenListItem.SectionHeader(letter.toString()))
-            if (!sectionIndices.containsKey(letter)) {
-                sectionIndices[letter] = headerIndex
-            }
-        }
-        items.add(HomeScreenListItem.AllAppItem(app))
-    }
-
-    return Pair(items, sectionIndices)
 }

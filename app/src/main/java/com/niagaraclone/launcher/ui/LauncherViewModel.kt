@@ -13,6 +13,7 @@ import com.niagaraclone.launcher.data.ReleaseInfo
 import com.niagaraclone.launcher.data.SystemStatusProvider
 import com.niagaraclone.launcher.data.UpdateDownloadState
 import com.niagaraclone.launcher.data.model.AppInfo
+import com.niagaraclone.launcher.data.model.LauncherSettings
 import com.niagaraclone.launcher.data.model.SystemStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -48,13 +49,17 @@ data class LauncherUiState(
     val favoriteApps: List<AppInfo> = emptyList(),
     val hiddenApps: List<AppInfo> = emptyList(),
     val systemStatus: SystemStatus = SystemStatus(),
+    val settings: LauncherSettings = LauncherSettings(),
     val searchQuery: String = "",
     val filteredApps: List<AppInfo> = emptyList(),
     val selectedSectionSymbol: Char? = null,
     val isScrubbingWave: Boolean = false,
+    val isAllAppsVisible: Boolean = false,
     val isSearchActive: Boolean = false,
     val isManageAppsActive: Boolean = false,
     val isUpdateSheetActive: Boolean = false,
+    val isSettingsSheetActive: Boolean = false,
+    val isDefaultPromptDialogVisible: Boolean = false,
     val selectedAppForMenu: AppInfo? = null,
     val alphabetSymbols: List<Char> = listOf('★', '#') + ('A'..'Z').toList(),
     val availableSymbols: Set<Char> = emptySet(),
@@ -84,9 +89,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val searchQuery: String = "",
         val selectedSectionSymbol: Char? = null,
         val isScrubbingWave: Boolean = false,
+        val isAllAppsVisible: Boolean = false,
         val isSearchActive: Boolean = false,
         val isManageAppsActive: Boolean = false,
         val isUpdateSheetActive: Boolean = false,
+        val isSettingsSheetActive: Boolean = false,
+        val isDefaultPromptDialogVisible: Boolean = false,
         val selectedAppForMenu: AppInfo? = null
     )
 
@@ -99,7 +107,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val isInitialSeeded: Boolean
     )
 
-    // Combine at most 4 flows for data layer
+    // Combine 4 data layer flows
     private val appsPreferencesFlow = combine(
         appRepository.installedAppsFlow,
         preferencesRepository.favoriteKeysFlow,
@@ -109,14 +117,22 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         AppsPreferencesState(installedRaw, favoriteKeys, hiddenKeys, isInitialSeeded)
     }
 
-    // Combine data layer (1 flow), system status (1 flow), and transient UI state (1 flow)
+    // Combine UI transient flows (3 flows)
+    private val uiTransientFlow = combine(
+        _transientState,
+        _updateState,
+        _permissionsState
+    ) { transient, update, perms ->
+        Triple(transient, update, perms)
+    }
+
+    // Combine 4 top-level flows
     val uiState: StateFlow<LauncherUiState> = combine(
         appsPreferencesFlow,
         systemStatusProvider.systemStatusFlow,
-        combine(_transientState, _updateState, _permissionsState) { transient, update, perms ->
-            Triple(transient, update, perms)
-        }
-    ) { data, systemStatus, (transient, update, perms) ->
+        preferencesRepository.settingsFlow,
+        uiTransientFlow
+    ) { data, systemStatus, settings, (transient, update, perms) ->
 
         // Seed initial default favorites safely guarded against race conditions
         if (!data.isInitialSeeded && data.installedApps.isNotEmpty() && hasTriggeredSeed.compareAndSet(false, true)) {
@@ -179,13 +195,17 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             favoriteApps = orderedFavorites,
             hiddenApps = hiddenApps,
             systemStatus = systemStatus,
+            settings = settings,
             searchQuery = transient.searchQuery,
             filteredApps = filtered,
             selectedSectionSymbol = transient.selectedSectionSymbol,
             isScrubbingWave = transient.isScrubbingWave,
+            isAllAppsVisible = transient.isAllAppsVisible,
             isSearchActive = transient.isSearchActive,
             isManageAppsActive = transient.isManageAppsActive,
             isUpdateSheetActive = transient.isUpdateSheetActive,
+            isSettingsSheetActive = transient.isSettingsSheetActive,
+            isDefaultPromptDialogVisible = transient.isDefaultPromptDialogVisible,
             selectedAppForMenu = transient.selectedAppForMenu,
             availableSymbols = availableSymbolSet,
             letterSectionIndices = sectionIndices,
@@ -276,11 +296,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                         )
                     }
                     is UpdateDownloadState.Complete -> {
+                        pendingInstallApk = downloadState.apkFile
                         _updateState.value = UpdateUiState.ReadyToInstall(
                             apkFile = downloadState.apkFile,
                             releaseInfo = downloadState.releaseInfo
                         )
-                        // Trigger install immediately upon download completion
                         installDownloadedApk(downloadState.apkFile)
                     }
                     is UpdateDownloadState.Error -> {
@@ -292,17 +312,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun installDownloadedApk(apkFile: File) {
+        pendingInstallApk = apkFile
         val result = updateRepository.installApk(apkFile)
         when (result) {
-            is InstallResult.Success -> {
-                pendingInstallApk = null
-            }
-            is InstallResult.NeedsUnknownSourcesPermission -> {
-                // Save pending file so onResume() automatically installs once permission is granted
-                pendingInstallApk = apkFile
-            }
+            is InstallResult.Success -> {}
+            is InstallResult.NeedsUnknownSourcesPermission -> {}
             is InstallResult.Error -> {
-                pendingInstallApk = null
                 _updateState.value = UpdateUiState.Error(result.message)
             }
         }
@@ -312,11 +327,49 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val updated = permissionsManager.checkPermissionsState()
         _permissionsState.value = updated
 
-        // If an APK was waiting for Unknown Sources permission and it was granted, resume install
         if (updated.canInstallPackages && pendingInstallApk != null && pendingInstallApk!!.exists()) {
             val fileToInstall = pendingInstallApk!!
             pendingInstallApk = null
             installDownloadedApk(fileToInstall)
+        }
+    }
+
+    fun updateSettings(transform: (LauncherSettings) -> LauncherSettings) {
+        viewModelScope.launch {
+            preferencesRepository.updateSettings(transform)
+        }
+    }
+
+    fun resetSettingsToDefault() {
+        viewModelScope.launch {
+            preferencesRepository.resetSettingsToDefault()
+        }
+    }
+
+    fun setAllAppsVisible(visible: Boolean) {
+        _transientState.update { it.copy(isAllAppsVisible = visible) }
+    }
+
+    fun setSettingsSheetActive(active: Boolean) {
+        _transientState.update { it.copy(isSettingsSheetActive = active) }
+    }
+
+    fun setDefaultPromptDialogVisible(visible: Boolean) {
+        _transientState.update { it.copy(isDefaultPromptDialogVisible = visible) }
+    }
+
+    fun onHomeIntentReceived() {
+        _transientState.update {
+            it.copy(
+                isSearchActive = false,
+                isManageAppsActive = false,
+                isUpdateSheetActive = false,
+                isSettingsSheetActive = false,
+                isDefaultPromptDialogVisible = false,
+                isAllAppsVisible = false,
+                selectedAppForMenu = null,
+                searchQuery = ""
+            )
         }
     }
 
@@ -383,7 +436,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun onWaveScrubSymbolChanged(symbol: Char) {
-        _transientState.update { it.copy(selectedSectionSymbol = symbol) }
+        if (symbol == '★') {
+            _transientState.update { it.copy(selectedSectionSymbol = symbol, isAllAppsVisible = false) }
+        } else {
+            _transientState.update { it.copy(selectedSectionSymbol = symbol, isAllAppsVisible = true) }
+        }
     }
 
     fun onWaveScrubEnded() {
