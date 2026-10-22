@@ -63,6 +63,7 @@ class PreferencesRepository(private val context: Context) {
         val SETTING_CUSTOM_ACCENT_HEX = longPreferencesKey("setting_custom_accent_hex")
         val SETTING_CUSTOM_ACCENT_LIGHT_HEX = longPreferencesKey("setting_custom_accent_light_hex")
         val SETTING_SWIPE_UP_TO_SEARCH = booleanPreferencesKey("setting_swipe_up_to_search")
+        val SETTING_LIVE_WALLPAPER_ENABLED = booleanPreferencesKey("setting_live_wallpaper_enabled")
     }
 
     private val dataStore = context.launcherDataStore
@@ -132,8 +133,8 @@ class PreferencesRepository(private val context: Context) {
             val iconSize = prefs[PreferencesKeys.SETTING_ICON_SIZE] ?: 26
             val iconStyleName = prefs[PreferencesKeys.SETTING_ICON_STYLE] ?: IconStyle.UNIFIED_THEMED.name
             val iconStyle = try { IconStyle.valueOf(iconStyleName) } catch (e: Exception) { IconStyle.UNIFIED_THEMED }
-            val iconShapeName = prefs[PreferencesKeys.SETTING_ICON_SHAPE] ?: IconShape.CIRCLE.name
-            val iconShape = try { IconShape.valueOf(iconShapeName) } catch (e: Exception) { IconShape.CIRCLE }
+            val iconShapeName = prefs[PreferencesKeys.SETTING_ICON_SHAPE] ?: IconShape.BARE.name
+            val iconShape = try { IconShape.valueOf(iconShapeName) } catch (e: Exception) { IconShape.BARE }
             val themePresetName = prefs[PreferencesKeys.SETTING_THEME_PRESET] ?: ThemePreset.NIAGARA_BLUE.name
             val themePreset = try { ThemePreset.valueOf(themePresetName) } catch (e: Exception) { ThemePreset.NIAGARA_BLUE }
             val edgePadding = prefs[PreferencesKeys.SETTING_EDGE_PADDING] ?: 44
@@ -162,6 +163,7 @@ class PreferencesRepository(private val context: Context) {
             val customAccentHex = prefs[PreferencesKeys.SETTING_CUSTOM_ACCENT_HEX] ?: 0xFFB0B3BAL
             val customAccentLightHex = prefs[PreferencesKeys.SETTING_CUSTOM_ACCENT_LIGHT_HEX] ?: 0xFFE0E2E6L
             val swipeUpToSearch = prefs[PreferencesKeys.SETTING_SWIPE_UP_TO_SEARCH] ?: true
+            val liveWallpaperEnabled = prefs[PreferencesKeys.SETTING_LIVE_WALLPAPER_ENABLED] ?: true
 
             LauncherSettings(
                 iconSizeDp = iconSize,
@@ -187,7 +189,8 @@ class PreferencesRepository(private val context: Context) {
                 customPhotoPath = customPhotoPath,
                 customAccentHex = customAccentHex,
                 customAccentLightHex = customAccentLightHex,
-                swipeUpToSearch = swipeUpToSearch
+                swipeUpToSearch = swipeUpToSearch,
+                liveWallpaperEnabled = liveWallpaperEnabled
             )
         }
 
@@ -227,6 +230,7 @@ class PreferencesRepository(private val context: Context) {
             prefs[PreferencesKeys.SETTING_CUSTOM_ACCENT_HEX] = updated.customAccentHex
             prefs[PreferencesKeys.SETTING_CUSTOM_ACCENT_LIGHT_HEX] = updated.customAccentLightHex
             prefs[PreferencesKeys.SETTING_SWIPE_UP_TO_SEARCH] = updated.swipeUpToSearch
+            prefs[PreferencesKeys.SETTING_LIVE_WALLPAPER_ENABLED] = updated.liveWallpaperEnabled
         }
     }
 
@@ -259,6 +263,7 @@ class PreferencesRepository(private val context: Context) {
             prefs.remove(PreferencesKeys.SETTING_CUSTOM_ACCENT_HEX)
             prefs.remove(PreferencesKeys.SETTING_CUSTOM_ACCENT_LIGHT_HEX)
             prefs.remove(PreferencesKeys.SETTING_SWIPE_UP_TO_SEARCH)
+            prefs.remove(PreferencesKeys.SETTING_LIVE_WALLPAPER_ENABLED)
         }
     }
 

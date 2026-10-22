@@ -136,6 +136,14 @@ fun LiveSandboxPreview(
             }
         }
 
+        // Live Ambient Motion Layer in mini-phone preview
+        if (settings.liveWallpaperEnabled && settings.wallpaperTheme != WallpaperTheme.SYSTEM_WALLPAPER) {
+            LiveAmbientWallpaper(
+                settings = settings,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+
         // Top Speaker Pill & Camera Notch
         Box(
             modifier = Modifier

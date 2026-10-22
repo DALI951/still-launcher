@@ -278,6 +278,14 @@ fun LauncherHomeScreen(
                     .background(Color.Black.copy(alpha = (settings.scrimOpacityPercent / 100f) * 0.4f))
             )
         }
+
+        // Live Ambient Motion Layer (silky, cinematic particle & wave motion at 60/120fps)
+        if (settings.liveWallpaperEnabled && settings.wallpaperTheme != WallpaperTheme.SYSTEM_WALLPAPER) {
+            LiveAmbientWallpaper(
+                settings = settings,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
         if (!uiState.isAllAppsVisible) {
             // ==========================================
             // MODE 1: PURE NIAGARA FAVORITES HOME SCREEN

@@ -78,7 +78,7 @@ enum class WallpaperTheme(
 data class LauncherSettings(
     val iconSizeDp: Int = 26,             // range 18..42
     val iconStyle: IconStyle = IconStyle.UNIFIED_THEMED,
-    val iconShape: IconShape = IconShape.CIRCLE,
+    val iconShape: IconShape = IconShape.BARE,
     val themePreset: ThemePreset = ThemePreset.NIAGARA_BLUE,
     val edgePaddingDp: Int = 44,          // range 20..76
     val rowHeightDp: Int = 46,            // range 36..60
@@ -99,19 +99,18 @@ data class LauncherSettings(
     val customPhotoPath: String? = null,
     val customAccentHex: Long = 0xFFB0B3BA,
     val customAccentLightHex: Long = 0xFFE0E2E6,
-    val swipeUpToSearch: Boolean = true
+    val swipeUpToSearch: Boolean = true,
+    val liveWallpaperEnabled: Boolean = true
 ) {
     val activeAccentHex: Long
         get() = when (wallpaperTheme) {
-            WallpaperTheme.CUSTOM_PHOTO -> customAccentHex
             WallpaperTheme.SYSTEM_WALLPAPER -> themePreset.accentHex
-            else -> wallpaperTheme.accentHex
+            else -> customAccentHex
         }
 
     val activeAccentLightHex: Long
         get() = when (wallpaperTheme) {
-            WallpaperTheme.CUSTOM_PHOTO -> customAccentLightHex
             WallpaperTheme.SYSTEM_WALLPAPER -> themePreset.accentLightHex
-            else -> wallpaperTheme.accentLightHex
+            else -> customAccentLightHex
         }
 }

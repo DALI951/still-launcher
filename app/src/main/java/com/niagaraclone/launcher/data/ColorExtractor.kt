@@ -72,23 +72,30 @@ object ColorExtractor {
                 }
             }
 
-            // If the image is largely monochrome / low saturation
-            if (highestVibrancy < 0.1f) {
+            // If the image is largely monochrome / low saturation or muddy contrast
+            if (highestVibrancy < 0.15f) {
                 val avgLum = if (pixelCount > 0) totalLuminance / pixelCount else 0.5f
                 bestAccentColor = if (avgLum < 0.5f) {
-                    0xFFECEFF1.toInt() // Bright silver for dark images
+                    0xFFE0E2E6.toInt() // Crisp Mist Silver fallback for dark images
                 } else {
-                    0xFF37474F.toInt() // Dark charcoal for bright images
+                    0xFFC5A866.toInt() // Elegant Champagne Gold fallback
                 }
             }
 
-            // Derive accent light hex for high legibility
+            // Derive accent and accent light hex with contrast enhancement
             ColorUtils.colorToHSL(bestAccentColor, hsl)
-            val accentHex = (0xFF000000 or (bestAccentColor.toLong() and 0xFFFFFFL))
 
-            // Light accent: increase lightness towards 0.85f and moderate saturation
-            hsl[2] = min(0.85f, max(0.70f, hsl[2] + 0.25f))
-            hsl[1] = min(hsl[1], 0.75f)
+            // Contrast enhancement: ensure luminance is at least 0.60f so icons/clock are always legible
+            if (hsl[2] < 0.45f) {
+                hsl[2] = 0.62f
+            }
+
+            val enhancedAccentColor = ColorUtils.HSLToColor(hsl)
+            val accentHex = (0xFF000000 or (enhancedAccentColor.toLong() and 0xFFFFFFL))
+
+            // Light accent: ensure lightness >= 0.78f for high legibility
+            hsl[2] = min(0.92f, max(0.78f, hsl[2] + 0.20f))
+            hsl[1] = min(hsl[1], 0.80f)
             val lightColorInt = ColorUtils.HSLToColor(hsl)
             val accentLightHex = (0xFF000000 or (lightColorInt.toLong() and 0xFFFFFFL))
 

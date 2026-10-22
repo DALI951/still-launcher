@@ -17,6 +17,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -100,12 +101,12 @@ import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
 private enum class AccentSwatch(val label: String, val hex: Long, val lightHex: Long) {
-    OCEAN_BLUE("Ocean Blue", 0xFF4E8CFF, 0xFF99C2FF),
-    AMBER_GOLD("Amber Gold", 0xFFF39C12, 0xFFFAD7A0),
-    CYBER_MINT("Cyber Mint", 0xFF2ECC71, 0xFF82E0AA),
+    MIST_SILVER("Mist Silver", 0xFFB0B3BA, 0xFFE0E2E6),
+    WARM_AMBER("Warm Amber", 0xFFD49B6A, 0xFFF5C7A1),
+    ARCTIC_CYAN("Arctic Cyan", 0xFF00E5FF, 0xFF80F2FF),
     ELECTRIC_VIOLET("Electric Violet", 0xFF9B59B6, 0xFFD2B4DE),
-    CRIMSON_ROSE("Crimson Rose", 0xFFE74C3C, 0xFFF5B7B1),
-    PURE_SILVER("Pure Silver", 0xFFB0B3BA, 0xFFECEFF1)
+    EMERALD_MINT("Emerald Mint", 0xFF2ECC71, 0xFF82E0AA),
+    CHAMPAGNE_GOLD("Champagne Gold", 0xFFC5A866, 0xFFEAD5A0)
 }
 
 /**
@@ -188,11 +189,16 @@ fun LauncherSettingsScreen(
 
     val tabs = listOf("Themes", "Icons", "Clock", "Wave", "About")
     var selectedTabIndex by remember { mutableIntStateOf(0) }
+    var isSandboxExpanded by remember { mutableStateOf(true) }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF0C0D11))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) { /* Consume touch events to prevent click-through to home screen below */ }
             .statusBarsPadding()
             .navigationBarsPadding()
     ) {
@@ -266,39 +272,73 @@ fun LauncherSettingsScreen(
 
             HorizontalDivider(color = Color(0x1FFFFFFF), thickness = 0.5.dp)
 
-            // Pinned Top Live Sandbox Area
+            // Pinned Top Live Sandbox Area with Expand/Collapse toggle
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 12.dp),
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                LiveSandboxPreview(
-                    settings = previewSettings,
-                    customBitmap = previewBitmap
-                )
-
-                if (hasUnsavedChanges) {
-                    Row(
-                        modifier = Modifier.padding(top = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "LIVE SANDBOX PREVIEW",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            letterSpacing = 1.2.sp,
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = previewAccentLight
+                    )
+                    TextButton(
+                        onClick = { isSandboxExpanded = !isSandboxExpanded },
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                     ) {
-                        TextButton(
-                            onClick = { previewSettings = settings }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Undo,
-                                contentDescription = null,
-                                tint = previewAccentLight,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "Discard Preview Tweaks",
-                                fontSize = 12.sp,
-                                color = previewAccentLight
-                            )
+                        Text(
+                            text = if (isSandboxExpanded) "Hide Preview ▲" else "Show Preview ▼",
+                            fontSize = 11.sp,
+                            color = TextSecondary
+                        )
+                    }
+                }
+
+                AnimatedVisibility(visible = isSandboxExpanded) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    ) {
+                        LiveSandboxPreview(
+                            settings = previewSettings,
+                            customBitmap = previewBitmap
+                        )
+
+                        if (hasUnsavedChanges) {
+                            Row(
+                                modifier = Modifier.padding(top = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                TextButton(
+                                    onClick = { previewSettings = settings }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Undo,
+                                        contentDescription = null,
+                                        tint = previewAccentLight,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Discard Preview Tweaks",
+                                        fontSize = 12.sp,
+                                        color = previewAccentLight
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -364,7 +404,11 @@ fun LauncherSettingsScreen(
                                     modifier = Modifier
                                         .width(140.dp)
                                         .clickable {
-                                            previewSettings = previewSettings.copy(wallpaperTheme = theme)
+                                            previewSettings = previewSettings.copy(
+                                                wallpaperTheme = theme,
+                                                customAccentHex = theme.accentHex,
+                                                customAccentLightHex = theme.accentLightHex
+                                            )
                                         }
                                 ) {
                                     Column(
@@ -553,8 +597,8 @@ fun LauncherSettingsScreen(
 
                         Spacer(modifier = Modifier.height(18.dp))
 
-                        // Accent Color Swatches
-                        SectionHeader("ACCENT PALETTE OVERRIDE")
+                        // Aesthetic Accent Presets
+                        SectionHeader("AESTHETIC ACCENT PRESETS")
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -594,6 +638,47 @@ fun LauncherSettingsScreen(
                                         )
                                     }
                                 }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(18.dp))
+
+                        // Live Ambient Motion Switch
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = Color(0x18FFFFFF),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x22FFFFFF)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "✨ Live Ambient Motion",
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = TextPrimary
+                                    )
+                                    Text(
+                                        text = "Smooth seamless cinematic motion on wallpapers",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = TextSecondary
+                                    )
+                                }
+                                Switch(
+                                    checked = previewSettings.liveWallpaperEnabled,
+                                    onCheckedChange = {
+                                        previewSettings = previewSettings.copy(liveWallpaperEnabled = it)
+                                    },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color.White,
+                                        checkedTrackColor = previewAccent
+                                    )
+                                )
                             }
                         }
 
