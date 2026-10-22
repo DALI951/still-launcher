@@ -1,16 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+
+    <!-- Outer Tranquil Equilibrium Ring -->
     <path
-        android:fillColor="#1E232A"
-        android:pathData="M0,0h108v108h-108z" />
-    <!-- Niagara signature curved minimalist wave 'N' logo -->
+        android:strokeColor="#1F2836"
+        android:strokeWidth="2.5"
+        android:pathData="M54,26 A28,28 0 1,0 54,82 A28,28 0 1,0 54,26 Z" />
+
+    <!-- Still "S" Monogram - Smooth Minimalist Zen Curve -->
     <path
-        android:fillColor="#4E8CFF"
-        android:pathData="M34,28 C34,25.79 35.79,24 38,24 L42,24 C44.21,24 46,25.79 46,28 L46,55.5 L62.8,26.1 C63.95,24.1 66.12,24 68,24 L72,24 C74.21,24 76,25.79 76,28 L76,80 C76,82.21 74.21,84 72,84 L68,84 C65.79,84 64,82.21 64,80 L64,52.5 L47.2,81.9 C46.05,83.9 43.88,84 42,84 L38,84 C35.79,84 34,82.21 34,80 Z" />
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M65,42 C65,36 43,36 43,47 C43,55 65,53 65,61 C65,72 43,72 43,66" />
+
+    <!-- Serene Stillness Aperture Accent Dot -->
     <path
-        android:fillColor="#80B3FF"
-        android:pathData="M78,50 A6,6 0 1,0 78,62 A6,6 0 1,0 78,50 Z" />
+        android:fillColor="#38BDF8"
+        android:pathData="M69,35 A3.5,3.5 0 1,0 69,42 A3.5,3.5 0 1,0 69,35 Z" />
+
 </vector>

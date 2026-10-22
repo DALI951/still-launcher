@@ -60,6 +60,8 @@ data class LauncherUiState(
     val isSearchActive: Boolean = false,
     val isSettingsSheetActive: Boolean = false,
     val isYouTubeGateActive: Boolean = false,
+    val directPlayVideoId: String? = null,
+    val directPlayStartSeconds: Int = 0,
     val pendingFrictionApp: AppInfo? = null,
     val pendingFrictionType: FrictionType? = null,
     val selectedAppForMenu: AppInfo? = null,
@@ -90,6 +92,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val isSearchActive: Boolean = false,
         val isSettingsSheetActive: Boolean = false,
         val isYouTubeGateActive: Boolean = false,
+        val directPlayVideoId: String? = null,
+        val directPlayStartSeconds: Int = 0,
         val pendingFrictionApp: AppInfo? = null,
         val pendingFrictionType: FrictionType? = null,
         val selectedAppForMenu: AppInfo? = null
@@ -205,6 +209,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             isSearchActive = transient.isSearchActive,
             isSettingsSheetActive = transient.isSettingsSheetActive,
             isYouTubeGateActive = transient.isYouTubeGateActive,
+            directPlayVideoId = transient.directPlayVideoId,
+            directPlayStartSeconds = transient.directPlayStartSeconds,
             pendingFrictionApp = transient.pendingFrictionApp,
             pendingFrictionType = transient.pendingFrictionType,
             selectedAppForMenu = transient.selectedAppForMenu,
@@ -358,7 +364,36 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun setYouTubeGateActive(active: Boolean) {
-        _transientState.update { it.copy(isYouTubeGateActive = active) }
+        _transientState.update {
+            it.copy(
+                isYouTubeGateActive = active,
+                directPlayVideoId = if (!active) null else it.directPlayVideoId,
+                directPlayStartSeconds = if (!active) 0 else it.directPlayStartSeconds
+            )
+        }
+    }
+
+    fun openYouTubeVideoDirectly(videoId: String, startSeconds: Int = 0, url: String? = null) {
+        _transientState.update {
+            it.copy(
+                isYouTubeGateActive = true,
+                directPlayVideoId = videoId,
+                directPlayStartSeconds = startSeconds,
+                isSearchActive = false,
+                isSettingsSheetActive = false,
+                pendingFrictionApp = null,
+                selectedAppForMenu = null
+            )
+        }
+        if (uiState.value.settings.youtubeHistoryEnabled) {
+            saveYouTubeHistory(
+                YouTubeHistoryItem(
+                    id = videoId,
+                    title = "Video ($videoId)",
+                    url = url ?: "https://www.youtube.com/watch?v=$videoId"
+                )
+            )
+        }
     }
 
     fun setSettingsSheetActive(active: Boolean) {
@@ -371,6 +406,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 isSearchActive = false,
                 isSettingsSheetActive = false,
                 isYouTubeGateActive = false,
+                directPlayVideoId = null,
+                directPlayStartSeconds = 0,
                 pendingFrictionApp = null,
                 pendingFrictionType = null,
                 selectedAppForMenu = null,

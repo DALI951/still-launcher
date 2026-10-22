@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 import com.niagaraclone.launcher.ui.LauncherViewModel
 import com.niagaraclone.launcher.ui.components.LauncherHomeScreen
+import com.niagaraclone.launcher.ui.components.parseYouTubeUrl
 import com.niagaraclone.launcher.ui.theme.StillLauncherTheme
 
 class MainActivity : ComponentActivity() {
@@ -42,6 +43,9 @@ class MainActivity : ComponentActivity() {
         // Enable edge-to-edge transparent system bars
         enableEdgeToEdge()
 
+        // Handle incoming YouTube view or share links
+        handleIncomingIntent(intent)
+
         // Check default launcher status
         if (!viewModel.permissionsManager.isCurrentDefaultLauncher()) {
             promptSetDefaultLauncher()
@@ -61,6 +65,31 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    private fun handleIncomingIntent(intent: Intent?): Boolean {
+        if (intent == null) return false
+        val action = intent.action
+        if (action == Intent.ACTION_VIEW) {
+            val dataStr = intent.dataString
+            if (!dataStr.isNullOrBlank()) {
+                val parsed = parseYouTubeUrl(dataStr)
+                if (parsed != null) {
+                    viewModel.openYouTubeVideoDirectly(parsed.first, parsed.second, dataStr)
+                    return true
+                }
+            }
+        } else if (action == Intent.ACTION_SEND && (intent.type == "text/plain" || intent.type?.startsWith("text/") == true)) {
+            val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+            if (!sharedText.isNullOrBlank()) {
+                val parsed = parseYouTubeUrl(sharedText)
+                if (parsed != null) {
+                    viewModel.openYouTubeVideoDirectly(parsed.first, parsed.second, sharedText)
+                    return true
+                }
+            }
+        }
+        return false
     }
 
     private fun requestNotificationPermissionIfNeeded() {
@@ -88,13 +117,15 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Triggered whenever physical or gesture Home is pressed while Still is already running.
-     * Returns immediately to the calm Favorites view and dismisses any active search or sheets.
+     * Triggered whenever physical or gesture Home is pressed while Still is already running,
+     * or when an external intent is delivered to singleTask MainActivity.
      */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        viewModel.onHomeIntentReceived()
+        if (!handleIncomingIntent(intent)) {
+            viewModel.onHomeIntentReceived()
+        }
     }
 
     override fun onResume() {

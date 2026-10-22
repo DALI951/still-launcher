@@ -225,6 +225,8 @@ fun LauncherHomeScreen(
             YouTubeGateScreen(
                 settings = settings,
                 historyList = uiState.youtubeHistory,
+                initialVideoId = uiState.directPlayVideoId,
+                initialStartSeconds = uiState.directPlayStartSeconds,
                 onSaveHistory = { viewModel.saveYouTubeHistory(it) },
                 onRemoveHistoryItem = { viewModel.removeYouTubeHistoryItem(it) },
                 onClearHistory = { viewModel.clearYouTubeHistory() },

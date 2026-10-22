@@ -40,6 +40,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.History
@@ -62,6 +63,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -96,6 +98,8 @@ import com.niagaraclone.launcher.ui.theme.TextSecondary
 fun YouTubeGateScreen(
     settings: LauncherSettings,
     historyList: List<YouTubeHistoryItem> = emptyList(),
+    initialVideoId: String? = null,
+    initialStartSeconds: Int = 0,
     onSaveHistory: (YouTubeHistoryItem) -> Unit = {},
     onRemoveHistoryItem: (String) -> Unit = {},
     onClearHistory: () -> Unit = {},
@@ -108,9 +112,17 @@ fun YouTubeGateScreen(
     val themeAccentLight = Color(settings.activeAccentLightHex)
 
     var urlInput by remember { mutableStateOf("") }
-    var activeVideoId by remember { mutableStateOf<String?>(null) }
-    var activeStartSeconds by remember { mutableStateOf(0) }
+    var activeVideoId by remember { mutableStateOf<String?>(initialVideoId) }
+    var activeStartSeconds by remember { mutableStateOf(initialStartSeconds) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(initialVideoId, initialStartSeconds) {
+        if (!initialVideoId.isNullOrBlank()) {
+            activeVideoId = initialVideoId
+            activeStartSeconds = initialStartSeconds
+            errorMessage = null
+        }
+    }
 
     // Intercept back button: if viewing video, return to URL prompt; if at prompt, exit to Still home
     BackHandler {
@@ -510,7 +522,7 @@ fun YouTubeGateScreen(
                         }
                     ) {
                         Icon(
-                            imageVector = Icons.Outlined.OpenInNew,
+                            imageVector = Icons.AutoMirrored.Outlined.OpenInNew,
                             contentDescription = "Open in External App",
                             tint = themeAccentLight,
                             modifier = Modifier.size(20.dp)
@@ -632,7 +644,6 @@ private fun DedicatedYouTubeWebView(
     modifier: Modifier = Modifier
 ) {
     val embedHtml = remember(videoId, startSeconds) {
-        val startParam = if (startSeconds > 0) "&start=$startSeconds" else ""
         """
         <!DOCTYPE html>
         <html>
@@ -711,8 +722,12 @@ private fun DedicatedYouTubeWebView(
 
                 webChromeClient = WebChromeClient()
                 webViewClient = object : WebViewClient() {
+                    override fun shouldOverrideUrlLoading(view: WebView?, request: android.webkit.WebResourceRequest?): Boolean {
+                        return true
+                    }
+
+                    @Deprecated("Deprecated in Java")
                     override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
-                        // Prevent navigation outside the embed container to eliminate algorithmic rabbit holes!
                         return true
                     }
                 }
@@ -727,89 +742,182 @@ private fun DedicatedYouTubeWebView(
 }
 
 /**
- * Robust YouTube video URL parser supporting:
- * - https://www.youtube.com/watch?v=VIDEO_ID
- * - https://youtu.be/VIDEO_ID
- * - https://www.youtube.com/shorts/VIDEO_ID
- * - https://m.youtube.com/watch?v=VIDEO_ID
- * - https://youtube.com/embed/VIDEO_ID
+ * Universal YouTube video URL parser and extractor.
+ * Supports:
+ * - Standard Watch: https://(www.|m.|music.)?youtube.com/watch?v=VIDEO_ID
+ * - Shortened: https://youtu.be/VIDEO_ID
+ * - Shorts: https://(www.|m.)?youtube.com/shorts/VIDEO_ID
+ * - Live streams: https://(www.|m.)?youtube.com/live/VIDEO_ID
+ * - Embed: https://(www.|m.)?youtube.com/embed/VIDEO_ID and youtube-nocookie.com/embed/VIDEO_ID
+ * - Legacy paths: /v/VIDEO_ID, /e/VIDEO_ID, /watch/VIDEO_ID
+ * - Attribution links: /attribution_link?u=/watch?v=VIDEO_ID
+ * - YouTube Kids: youtubekids.com/watch?v=VIDEO_ID
+ * - Schemeless URLs: youtu.be/VIDEO_ID, youtube.com/watch?v=VIDEO_ID, etc.
  * - Raw 11-character video ID
+ * - Any text containing YouTube URLs (e.g. shared text from Android apps)
+ * - Timestamps: t=, start=, time_continue= in query parameters or #t= in hash fragment
  *
- * Extracts (VideoID, StartTimestampInSeconds).
+ * Returns Pair(VideoID, StartTimestampInSeconds) or null if no valid ID found.
  */
-fun parseYouTubeUrl(input: String): Pair<String, Int>? {
-    val trimmed = input.trim()
-    if (trimmed.isEmpty()) return null
+fun parseYouTubeUrl(input: String?): Pair<String, Int>? {
+    if (input.isNullOrBlank()) return null
+    val raw = input.trim()
 
-    // If user entered raw 11-character video ID
+    // 1. Raw 11-character video ID directly
     val rawIdRegex = Regex("^[a-zA-Z0-9_-]{11}\$")
-    if (rawIdRegex.matches(trimmed)) {
-        return Pair(trimmed, 0)
+    if (rawIdRegex.matches(raw)) {
+        return Pair(raw, 0)
     }
 
-    val uri = try {
-        Uri.parse(trimmed)
-    } catch (e: Exception) {
-        return null
+    // 2. Extract URL candidate if embedded in surrounding text (e.g. Android Share Sheet message)
+    val urlFinderRegex = Regex("(?:https?://|www\\.|m\\.|music\\.|youtu\\.be/)[^\\s\"'<>\\]\\)]+")
+    val foundUrl = urlFinderRegex.find(raw)?.value ?: raw
+
+    // 3. Normalize schemeless URLs
+    val normalizedUrl = when {
+        foundUrl.startsWith("http://", ignoreCase = true) || foundUrl.startsWith("https://", ignoreCase = true) -> foundUrl
+        foundUrl.startsWith("youtu.be/", ignoreCase = true) ||
+                foundUrl.startsWith("youtube.com/", ignoreCase = true) ||
+                foundUrl.startsWith("www.youtube.com/", ignoreCase = true) ||
+                foundUrl.startsWith("m.youtube.com/", ignoreCase = true) ||
+                foundUrl.startsWith("music.youtube.com/", ignoreCase = true) ||
+                foundUrl.startsWith("youtubekids.com/", ignoreCase = true) -> "https://$foundUrl"
+        else -> foundUrl
     }
 
-    val host = uri.host?.lowercase() ?: ""
     var extractedId: String? = null
     var startSeconds = 0
 
-    // Parse timestamp if present (t=120 or t=2m15s or start=120)
-    val tParam = uri.getQueryParameter("t") ?: uri.getQueryParameter("start")
-    if (!tParam.isNullOrEmpty()) {
-        startSeconds = parseTimestampSeconds(tParam)
+    // 4. Try Android Uri parsing if available at runtime
+    try {
+        val uri = Uri.parse(normalizedUrl)
+        if (uri != null) {
+            val tParam = uri.getQueryParameter("t")
+                ?: uri.getQueryParameter("start")
+                ?: uri.getQueryParameter("time_continue")
+            if (!tParam.isNullOrEmpty()) {
+                startSeconds = parseTimestampSeconds(tParam)
+            } else {
+                val fragment = uri.fragment
+                if (!fragment.isNullOrEmpty()) {
+                    val fragMatch = Regex("(?:t|start|time_continue)=(\\w+)").find(fragment)
+                    if (fragMatch != null) {
+                        startSeconds = parseTimestampSeconds(fragMatch.groupValues[1])
+                    }
+                }
+            }
+
+            val host = uri.host?.lowercase() ?: ""
+
+            // Handle YouTube Attribution link
+            if (uri.path?.contains("attribution_link") == true) {
+                val uParam = uri.getQueryParameter("u")
+                if (!uParam.isNullOrEmpty()) {
+                    val innerTarget = if (uParam.startsWith("/")) "https://www.youtube.com$uParam" else uParam
+                    val innerResult = parseYouTubeUrl(innerTarget)
+                    if (innerResult != null) {
+                        return Pair(innerResult.first, if (startSeconds > 0) startSeconds else innerResult.second)
+                    }
+                }
+            }
+
+            if (host == "youtu.be" || host.endsWith(".youtu.be")) {
+                val segment = uri.pathSegments.firstOrNull()
+                if (!segment.isNullOrEmpty() && segment.length >= 11) {
+                    val candidate = segment.substring(0, 11)
+                    if (rawIdRegex.matches(candidate)) extractedId = candidate
+                }
+            }
+
+            if (host.contains("youtube.com") || host.contains("youtubekids.com") || host.contains("youtube-nocookie.com")) {
+                val vParam = uri.getQueryParameter("v")
+                if (!vParam.isNullOrEmpty() && vParam.length >= 11) {
+                    val candidate = vParam.substring(0, 11)
+                    if (rawIdRegex.matches(candidate)) extractedId = candidate
+                }
+
+                if (extractedId == null) {
+                    val segments = uri.pathSegments
+                    val targetIndices = listOf("shorts", "live", "embed", "v", "e", "watch", "w")
+                    for (target in targetIndices) {
+                        val index = segments.indexOf(target)
+                        if (index != -1 && segments.size > index + 1) {
+                            val segCandidate = segments[index + 1]
+                            if (segCandidate.length >= 11) {
+                                val candidate = segCandidate.substring(0, 11)
+                                if (rawIdRegex.matches(candidate)) {
+                                    extractedId = candidate
+                                    break
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    } catch (_: Throwable) {
+        // Fallback gracefully to regex parsing below
     }
 
-    // youtu.be/VIDEO_ID
-    if (host == "youtu.be") {
-        val segment = uri.pathSegments.firstOrNull()
-        if (!segment.isNullOrEmpty() && segment.length >= 11) {
-            extractedId = segment.substring(0, 11)
+    // 5. Fallback Regex parsing (handles any URI quirks, JVM unit testing, attribution links)
+    if (extractedId == null) {
+        // Handle attribution_link in raw string if not already handled
+        if (normalizedUrl.contains("attribution_link") && normalizedUrl.contains("u=")) {
+            try {
+                val uParamEncoded = Regex("[?&]u=([^&]+)").find(normalizedUrl)?.groupValues?.get(1)
+                if (uParamEncoded != null) {
+                    val decoded = java.net.URLDecoder.decode(uParamEncoded, "UTF-8")
+                    val innerTarget = if (decoded.startsWith("/")) "https://www.youtube.com$decoded" else decoded
+                    val innerResult = parseYouTubeUrl(innerTarget)
+                    if (innerResult != null) {
+                        return Pair(innerResult.first, if (startSeconds > 0) startSeconds else innerResult.second)
+                    }
+                }
+            } catch (_: Throwable) {}
+        }
+
+        val directRegexPatterns = listOf(
+            Regex("(?:[?&]v=)([a-zA-Z0-9_-]{11})"),
+            Regex("youtu\\.be/([a-zA-Z0-9_-]{11})"),
+            Regex("/(?:shorts|live|embed|v|e|w|watch)/([a-zA-Z0-9_-]{11})")
+        )
+        for (pattern in directRegexPatterns) {
+            val match = pattern.find(normalizedUrl)
+            if (match != null) {
+                extractedId = match.groupValues[1]
+                break
+            }
         }
     }
 
-    // youtube.com, m.youtube.com, www.youtube.com
-    if (host.contains("youtube.com")) {
-        // /watch?v=VIDEO_ID
-        val vParam = uri.getQueryParameter("v")
-        if (!vParam.isNullOrEmpty() && vParam.length >= 11) {
-            extractedId = vParam.substring(0, 11)
-        }
-
-        if (extractedId == null) {
-            val segments = uri.pathSegments
-            val shortsIndex = segments.indexOf("shorts")
-            if (shortsIndex != -1 && segments.size > shortsIndex + 1) {
-                val id = segments[shortsIndex + 1]
-                if (id.length >= 11) extractedId = id.substring(0, 11)
-            }
-
-            val embedIndex = segments.indexOf("embed")
-            if (embedIndex != -1 && segments.size > embedIndex + 1) {
-                val id = segments[embedIndex + 1]
-                if (id.length >= 11) extractedId = id.substring(0, 11)
-            }
+    // Fallback timestamp scan from URL string if not already extracted
+    if (startSeconds == 0) {
+        val timeRegex = Regex("[?&#](?:t|start|time_continue)=(\\w+)")
+        val timeMatch = timeRegex.find(normalizedUrl)
+        if (timeMatch != null) {
+            startSeconds = parseTimestampSeconds(timeMatch.groupValues[1])
         }
     }
 
     return extractedId?.let { Pair(it, startSeconds) }
 }
 
-private fun parseTimestampSeconds(param: String): Int {
+fun parseTimestampSeconds(param: String): Int {
+    val clean = param.trim().lowercase().removePrefix("t=").removePrefix("start=")
+    if (clean.isEmpty()) return 0
     return try {
-        if (param.all { it.isDigit() }) {
-            param.toInt()
+        // Pure digits (e.g., 90 or 90s)
+        val pureSecondsMatch = Regex("^(\\d+)s?\$").find(clean)
+        if (pureSecondsMatch != null) {
+            pureSecondsMatch.groupValues[1].toInt()
         } else {
-            // e.g. 1h20m30s or 2m15s or 45s
+            // Formatted e.g. 1h20m30s or 2m15s or 45s
             var total = 0
-            val hMatch = Regex("(\\d+)h").find(param)
+            val hMatch = Regex("(\\d+)h").find(clean)
             if (hMatch != null) total += hMatch.groupValues[1].toInt() * 3600
-            val mMatch = Regex("(\\d+)m").find(param)
+            val mMatch = Regex("(\\d+)m").find(clean)
             if (mMatch != null) total += mMatch.groupValues[1].toInt() * 60
-            val sMatch = Regex("(\\d+)s").find(param)
+            val sMatch = Regex("(\\d+)s").find(clean)
             if (sMatch != null) total += sMatch.groupValues[1].toInt()
             total
         }
