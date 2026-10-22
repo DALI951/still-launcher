@@ -136,36 +136,43 @@ class AppUpdateRepository(private val context: Context) {
     fun downloadApk(releaseInfo: ReleaseInfo): Flow<UpdateDownloadState> = flow {
         emit(UpdateDownloadState.Downloading(0, 0f, (releaseInfo.apkSize / (1024f * 1024f))))
 
-        var currentUrl = releaseInfo.downloadUrl
-        var connection: HttpURLConnection? = null
-        var redirectCount = 0
-
-        while (true) {
-            val url = URL(currentUrl)
-            connection = url.openConnection() as HttpURLConnection
-            connection.instanceFollowRedirects = true
-            connection.connectTimeout = 15000
-            connection.readTimeout = 30000
-            connection.setRequestProperty("User-Agent", "NiagaraLauncherClone-Android")
-
-            val responseCode = connection.responseCode
-            if (responseCode in 300..399) {
-                val newLocation = connection.getHeaderField("Location")
-                if (!newLocation.isNullOrEmpty() && redirectCount < 6) {
-                    currentUrl = newLocation
-                    redirectCount++
-                    continue
-                }
-            }
-            break
-        }
-
-        val conn = connection ?: throw Exception("Failed to establish download connection")
-        val totalBytes = if (conn.contentLengthLong > 0) conn.contentLengthLong else releaseInfo.apkSize
-        val totalMb = (totalBytes / (1024f * 1024f))
-
         val tempFile = File(updatesDir, "download_${System.currentTimeMillis()}.apk")
         try {
+            var currentUrl = releaseInfo.downloadUrl
+            var connection: HttpURLConnection? = null
+            var redirectCount = 0
+
+            while (true) {
+                val url = URL(currentUrl)
+                connection = (url.openConnection() as HttpURLConnection).apply {
+                    instanceFollowRedirects = true
+                    connectTimeout = 15000
+                    readTimeout = 30000
+                    setRequestProperty("User-Agent", "NiagaraLauncherClone-Android")
+                    setRequestProperty("Accept", "application/octet-stream")
+                }
+
+                val responseCode = connection.responseCode
+                if (responseCode in 300..399) {
+                    val newLocation = connection.getHeaderField("Location")
+                    connection.disconnect()
+                    if (!newLocation.isNullOrEmpty() && redirectCount < 6) {
+                        currentUrl = newLocation
+                        redirectCount++
+                        continue
+                    }
+                }
+                break
+            }
+
+            val conn = connection ?: throw Exception("Failed to establish download connection")
+            if (conn.responseCode != HttpURLConnection.HTTP_OK) {
+                throw Exception("Download server returned HTTP ${conn.responseCode}")
+            }
+
+            val totalBytes = if (conn.contentLengthLong > 0) conn.contentLengthLong else releaseInfo.apkSize
+            val totalMb = (totalBytes / (1024f * 1024f))
+
             conn.inputStream.use { input ->
                 FileOutputStream(tempFile).use { output ->
                     val buffer = ByteArray(8192)

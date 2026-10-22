@@ -276,7 +276,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                         )
                     }
                     is UpdateDownloadState.Complete -> {
-                        pendingInstallApk = downloadState.apkFile
                         _updateState.value = UpdateUiState.ReadyToInstall(
                             apkFile = downloadState.apkFile,
                             releaseInfo = downloadState.releaseInfo
@@ -293,16 +292,17 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun installDownloadedApk(apkFile: File) {
-        pendingInstallApk = apkFile
         val result = updateRepository.installApk(apkFile)
         when (result) {
             is InstallResult.Success -> {
-                // Install activity started
+                pendingInstallApk = null
             }
             is InstallResult.NeedsUnknownSourcesPermission -> {
-                // Settings opened, awaiting user return
+                // Save pending file so onResume() automatically installs once permission is granted
+                pendingInstallApk = apkFile
             }
             is InstallResult.Error -> {
+                pendingInstallApk = null
                 _updateState.value = UpdateUiState.Error(result.message)
             }
         }
