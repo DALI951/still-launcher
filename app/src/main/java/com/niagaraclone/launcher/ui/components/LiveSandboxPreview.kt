@@ -271,7 +271,7 @@ private fun MockAppRow(
     val miniIconSize = (settings.iconSizeDp * 0.52f).coerceIn(12f, 20f).dp
     val miniIconShape = when (settings.iconShape) {
         IconShape.CIRCLE -> CircleShape
-        IconShape.SQUIRCLE -> RoundedCornerShape(28%)
+        IconShape.SQUIRCLE -> RoundedCornerShape(28)
         IconShape.BARE -> RoundedCornerShape(0.dp)
     }
 
