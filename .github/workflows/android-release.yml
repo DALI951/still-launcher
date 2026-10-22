@@ -36,12 +36,12 @@ jobs:
         run: |
           VERSION_CODE=$((100 + GITHUB_RUN_NUMBER))
           VERSION_NAME="1.0.${GITHUB_RUN_NUMBER}"
-          echo "Building Niagara Launcher v${VERSION_NAME} (code ${VERSION_CODE})..."
+          echo "Building Still Launcher v${VERSION_NAME} (code ${VERSION_CODE})..."
           gradle assembleRelease -PversionCode=${VERSION_CODE} -PversionName=${VERSION_NAME} --no-daemon
 
       - name: Stage Release APK Asset
         run: |
-          APK_FILE="NiagaraLauncher-v1.0.${GITHUB_RUN_NUMBER}.apk"
+          APK_FILE="Still-v1.0.${GITHUB_RUN_NUMBER}.apk"
           cp app/build/outputs/apk/release/app-release.apk "${APK_FILE}"
           echo "APK_FILE=${APK_FILE}" >> $GITHUB_ENV
           ls -lh "${APK_FILE}"
@@ -50,7 +50,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "v1.0.${{ github.run_number }}"
-          name: "Niagara Launcher v1.0.${{ github.run_number }} (Build #${{ github.run_number }})"
+          name: "Still — Minimal Launcher v1.0.${{ github.run_number }} (Build #${{ github.run_number }})"
           files: "${{ env.APK_FILE }}"
           draft: false
           prerelease: false

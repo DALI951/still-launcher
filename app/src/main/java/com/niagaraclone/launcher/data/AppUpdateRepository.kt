@@ -47,7 +47,7 @@ sealed class InstallResult {
 class AppUpdateRepository(private val context: Context) {
 
     private val updatesDir = File(context.cacheDir, "updates").apply { mkdirs() }
-    val cachedApkFile = File(updatesDir, "NiagaraLauncher-update.apk")
+    val cachedApkFile = File(updatesDir, "Still-update.apk")
 
     /**
      * Checks GitHub API for the latest published release.
@@ -61,7 +61,7 @@ class AppUpdateRepository(private val context: Context) {
                 readTimeout = 10000
                 requestMethod = "GET"
                 setRequestProperty("Accept", "application/vnd.github.v3+json")
-                setRequestProperty("User-Agent", "NiagaraLauncherClone-Android")
+                setRequestProperty("User-Agent", "StillLauncher-Android")
             }
 
             val responseCode = connection.responseCode
@@ -148,7 +148,7 @@ class AppUpdateRepository(private val context: Context) {
                     instanceFollowRedirects = true
                     connectTimeout = 15000
                     readTimeout = 30000
-                    setRequestProperty("User-Agent", "NiagaraLauncherClone-Android")
+                    setRequestProperty("User-Agent", "StillLauncher-Android")
                     setRequestProperty("Accept", "application/octet-stream")
                 }
 

@@ -1,5 +1,6 @@
 package com.niagaraclone.launcher.ui.components
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -13,13 +14,15 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -40,21 +43,20 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.niagaraclone.launcher.R
 import com.niagaraclone.launcher.data.model.AppInfo
 import com.niagaraclone.launcher.data.model.LauncherSettings
-import com.niagaraclone.launcher.ui.theme.NiagaraBlue
-import com.niagaraclone.launcher.ui.theme.ScrimDark
 import com.niagaraclone.launcher.ui.theme.TextMuted
 import com.niagaraclone.launcher.ui.theme.TextPrimary
 import com.niagaraclone.launcher.ui.theme.TextSecondary
 
+/**
+ * Fast, deliberate application search screen for Still — Minimal Launcher.
+ */
 @Composable
 fun AppSearchOverlay(
     visible: Boolean,
@@ -68,6 +70,13 @@ fun AppSearchOverlay(
     settings: LauncherSettings = LauncherSettings()
 ) {
     val focusRequester = remember { FocusRequester() }
+    val bgColor = Color(settings.themeMode.bgHex)
+    val textColor = Color(settings.themeMode.textHex)
+    val accentLight = Color(settings.activeAccentLightHex)
+
+    BackHandler(enabled = visible) {
+        onDismiss()
+    }
 
     AnimatedVisibility(
         visible = visible,
@@ -78,20 +87,21 @@ fun AppSearchOverlay(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(ScrimDark)
+                .background(bgColor)
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .imePadding()
         ) {
             Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .statusBarsPadding()
+                modifier = Modifier.fillMaxSize()
             ) {
                 // Top Search Bar
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 12.dp)
-                        .clip(CircleShape)
-                        .background(Color(0x33FFFFFF))
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0x18FFFFFF))
                         .padding(horizontal = 6.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -99,7 +109,7 @@ fun AppSearchOverlay(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
-                            tint = TextPrimary
+                            tint = textColor
                         )
                     }
 
@@ -111,9 +121,9 @@ fun AppSearchOverlay(
                     ) {
                         if (query.isEmpty()) {
                             Text(
-                                text = stringResource(R.string.search_hint),
+                                text = "Search installed applications...",
                                 color = TextMuted,
-                                fontSize = 16.sp
+                                fontSize = 15.sp
                             )
                         }
 
@@ -121,11 +131,11 @@ fun AppSearchOverlay(
                             value = query,
                             onValueChange = onQueryChange,
                             textStyle = TextStyle(
-                                color = TextPrimary,
-                                fontSize = 16.sp,
+                                color = textColor,
+                                fontSize = 15.sp,
                                 fontWeight = FontWeight.Normal
                             ),
-                            cursorBrush = SolidColor(NiagaraBlue),
+                            cursorBrush = SolidColor(accentLight),
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                             keyboardActions = KeyboardActions(
@@ -162,7 +172,7 @@ fun AppSearchOverlay(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = stringResource(R.string.no_apps_found),
+                            text = "No applications found",
                             style = MaterialTheme.typography.bodyLarge,
                             color = TextMuted
                         )
@@ -181,12 +191,11 @@ fun AppSearchOverlay(
                                 app = app,
                                 settings = settings,
                                 onClick = { onAppClick(app) },
-                                onLongClick = { onAppLongClick(app) },
-                                showFavoriteStar = true
+                                onLongClick = { onAppLongClick(app) }
                             )
                         }
                         item {
-                            Spacer(modifier = Modifier.height(48.dp))
+                            Spacer(modifier = Modifier.height(32.dp))
                         }
                     }
                 }

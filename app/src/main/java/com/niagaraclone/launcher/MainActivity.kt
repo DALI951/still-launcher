@@ -12,14 +12,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 import com.niagaraclone.launcher.ui.LauncherViewModel
 import com.niagaraclone.launcher.ui.components.LauncherHomeScreen
-import com.niagaraclone.launcher.ui.theme.NiagaraLauncherTheme
+import com.niagaraclone.launcher.ui.theme.StillLauncherTheme
 
 class MainActivity : ComponentActivity() {
 
@@ -44,39 +42,21 @@ class MainActivity : ComponentActivity() {
         // Enable edge-to-edge transparent system bars
         enableEdgeToEdge()
 
-        // Priority #1: If not yet the default home launcher, ask immediately (and show onboarding dialog)
-        // Do NOT launch two system dialogs simultaneously, or Android drops the second one!
+        // Check default launcher status
         if (!viewModel.permissionsManager.isCurrentDefaultLauncher()) {
-            viewModel.setDefaultPromptDialogVisible(true)
             promptSetDefaultLauncher()
         } else {
             requestNotificationPermissionIfNeeded()
         }
 
         setContent {
-            NiagaraLauncherTheme {
-                val uiState by viewModel.uiState.collectAsState()
-
+            StillLauncherTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = Color.Transparent
                 ) {
                     LauncherHomeScreen(
-                        viewModel = viewModel,
-                        uiState = uiState,
-                        onRequestDefaultLauncher = {
-                            promptSetDefaultLauncher()
-                        },
-                        onRequestUnknownSources = {
-                            viewModel.permissionsManager.openUnknownSourcesSettings(this)
-                        },
-                        onRequestNotifications = {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                            } else {
-                                viewModel.permissionsManager.openNotificationSettings(this)
-                            }
-                        }
+                        viewModel = viewModel
                     )
                 }
             }
@@ -101,15 +81,15 @@ class MainActivity : ComponentActivity() {
             try {
                 homeRoleLauncher.launch(roleIntent)
                 return
-            } catch (ignored: Exception) {}
+            } catch (_: Exception) {}
         }
-        // Fallback to system home settings or show prompt dialog
+        // Fallback to system home settings
         viewModel.permissionsManager.openHomeSettings(this)
     }
 
     /**
-     * Triggered whenever the physical/gesture Home button is pressed while Niagara is already running.
-     * Returns immediately to the clean Favorites view and closes all sheets and search overlays.
+     * Triggered whenever physical or gesture Home is pressed while Still is already running.
+     * Returns immediately to the calm Favorites view and dismisses any active search or sheets.
      */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)

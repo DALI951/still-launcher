@@ -1,23 +1,14 @@
 package com.niagaraclone.launcher.ui.components
 
-import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
+import android.content.Intent
 import android.net.Uri
-import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import android.os.Build
+import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,1287 +22,1186 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.outlined.Check
-import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.CloudDownload
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.Image
-import androidx.compose.material.icons.outlined.RestartAlt
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Security
+import androidx.compose.material.icons.outlined.SelfImprovement
 import androidx.compose.material.icons.outlined.SystemUpdate
-import androidx.compose.material.icons.outlined.Undo
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.niagaraclone.launcher.data.AssetWallpaperLoader
-import com.niagaraclone.launcher.data.ColorExtractor
-import com.niagaraclone.launcher.data.model.ClockStyle
-import com.niagaraclone.launcher.data.model.IconShape
-import com.niagaraclone.launcher.data.model.IconStyle
-import com.niagaraclone.launcher.data.model.IconThemingMode
-import com.niagaraclone.launcher.data.model.LauncherSettings
-import com.niagaraclone.launcher.data.model.ThemePreset
-import com.niagaraclone.launcher.data.model.WallpaperTheme
-import com.niagaraclone.launcher.data.model.WaveVerticalPosition
-import com.niagaraclone.launcher.data.model.WaveVisibility
+import com.niagaraclone.launcher.data.model.AppInfo
+import com.niagaraclone.launcher.data.model.AppLaunchRule
+import com.niagaraclone.launcher.data.model.FocusProfile
+import com.niagaraclone.launcher.data.model.StillAccent
+import com.niagaraclone.launcher.data.model.StillThemeMode
+import com.niagaraclone.launcher.ui.LauncherViewModel
+import com.niagaraclone.launcher.ui.UpdateUiState
+import com.niagaraclone.launcher.ui.theme.DangerRed
 import com.niagaraclone.launcher.ui.theme.TextMuted
 import com.niagaraclone.launcher.ui.theme.TextPrimary
 import com.niagaraclone.launcher.ui.theme.TextSecondary
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import kotlin.math.roundToInt
 
-private enum class AccentSwatch(val label: String, val hex: Long, val lightHex: Long) {
-    OBSIDIAN_SILVER("Obsidian Silver", 0xFFB0B3BA, 0xFFE0E2E6),
-    SUPERNOVA_GOLD("Supernova Gold", 0xFFD49B6A, 0xFFF5C7A1),
-    NEON_CYAN("Neon Cyan", 0xFF00E5FF, 0xFF80F2FF),
-    AURORA_MINT("Aurora Mint", 0xFF2ECC71, 0xFF82E0AA),
-    STARLIGHT_VIOLET("Starlight Violet", 0xFF9B59B6, 0xFFD2B4DE),
-    CHAMPAGNE_GOLD("Champagne Gold", 0xFFC5A866, 0xFFEAD5A0)
+private enum class SettingsSection(val label: String, val icon: ImageVector) {
+    APPEARANCE("Appearance", Icons.Outlined.Palette),
+    FAVORITES("Favorites & Apps", Icons.Outlined.Apps),
+    FOCUS("Focus", Icons.Outlined.SelfImprovement),
+    YOUTUBE("YouTube", Icons.Outlined.PlayArrow),
+    UPDATES("Updates", Icons.Outlined.SystemUpdate),
+    PRIVACY("Privacy", Icons.Outlined.Security),
+    ABOUT("About", Icons.Outlined.Info)
 }
 
 /**
- * Dedicated Full-Screen Settings App & Theme Studio.
- * Includes a Live Interactive Sandbox mini-phone preview that updates in real time.
+ * Consolidated settings interface for Still — Minimal Launcher.
+ * Contains only the 7 necessary sections without unneeded bloat.
  */
 @Composable
 fun LauncherSettingsScreen(
-    settings: LauncherSettings,
+    viewModel: LauncherViewModel,
     onDismissRequest: () -> Unit,
-    onApplySettings: (LauncherSettings) -> Unit,
-    onResetDefaults: () -> Unit,
-    onRequestDefaultLauncher: () -> Unit = {},
-    onOpenUpdates: () -> Unit = {}
+    modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
+    val uiState by viewModel.uiState.collectAsState()
+    val settings = uiState.settings
+    val bgColor = Color(settings.themeMode.bgHex)
+    val textColor = Color(settings.themeMode.textHex)
+    val textSecondaryColor = Color(settings.themeMode.textSecondaryHex)
+    val accent = Color(settings.activeAccentHex)
+    val accentLight = Color(settings.activeAccentLightHex)
 
-    var previewSettings by remember(settings) { mutableStateOf(settings) }
-    var baselineSettings by remember(settings) { mutableStateOf(settings) }
-    val hasUnsavedChanges = previewSettings != baselineSettings
-    var showAppliedBanner by remember { mutableStateOf(false) }
-
-    LaunchedEffect(showAppliedBanner) {
-        if (showAppliedBanner) {
-            delay(2500)
-            showAppliedBanner = false
-        }
-    }
-
-    val applyChanges: () -> Unit = {
-        onApplySettings(previewSettings)
-        baselineSettings = previewSettings
-        showAppliedBanner = true
-    }
-
-    val previewAccent = Color(previewSettings.activeAccentHex)
-    val previewAccentLight = Color(previewSettings.activeAccentLightHex)
-
-    var previewBitmap by remember(previewSettings.customPhotoPath) {
-        mutableStateOf<Bitmap?>(null)
-    }
-
-    LaunchedEffect(previewSettings.customPhotoPath) {
-        val path = previewSettings.customPhotoPath
-        previewBitmap = if (!path.isNullOrEmpty()) {
-            withContext(Dispatchers.IO) {
-                try {
-                    BitmapFactory.decodeFile(path)
-                } catch (e: Exception) {
-                    null
-                }
-            }
-        } else {
-            null
-        }
-    }
-
-    val photoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            coroutineScope.launch {
-                val palette = ColorExtractor.extractAndSavePalette(context, uri)
-                if (palette != null) {
-                    previewSettings = previewSettings.copy(
-                        wallpaperTheme = WallpaperTheme.CUSTOM_PHOTO,
-                        customPhotoPath = palette.imagePath,
-                        customAccentHex = palette.accentHex,
-                        customAccentLightHex = palette.accentLightHex
-                    )
-                }
-            }
-        }
-    }
-
-    BackHandler {
-        onDismissRequest()
-    }
-
-    val tabs = listOf("Themes", "Icons", "Clock", "Wave", "About")
-    var selectedTabIndex by remember { mutableIntStateOf(0) }
-    var isSandboxExpanded by remember { mutableStateOf(true) }
+    var currentSection by remember { mutableStateOf(SettingsSection.APPEARANCE) }
+    var showDisableGateDialog by remember { mutableStateOf(false) }
 
     Surface(
-        color = Color(0xFF0C0D11),
-        modifier = Modifier
+        color = bgColor,
+        modifier = modifier
             .fillMaxSize()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) { /* Absorb clicks on empty space to prevent click-through */ }
             .statusBarsPadding()
             .navigationBarsPadding()
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            Column(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
             // Top App Bar
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    IconButton(
-                        onClick = onDismissRequest,
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = TextPrimary
-                        )
-                    }
-
-                    Column {
-                        Text(
-                            text = "Niagara Settings",
-                            style = MaterialTheme.typography.titleLarge.copy(
-                                fontSize = 19.sp,
-                                fontWeight = FontWeight.Bold
-                            ),
-                            color = TextPrimary
-                        )
-                        Text(
-                            text = "Theme Studio & Ergonomics",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary
-                        )
-                    }
-                }
-
-                // Apply Button in header
-                Button(
-                    onClick = applyChanges,
-                    enabled = hasUnsavedChanges,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = previewAccent,
-                        disabledContainerColor = Color(0x22FFFFFF)
-                    ),
-                    shape = CircleShape,
-                    contentPadding = ButtonDefaults.ButtonWithIconContentPadding
-                ) {
+                IconButton(onClick = onDismissRequest) {
                     Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = "Apply",
-                        tint = if (hasUnsavedChanges) Color.White else TextMuted,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Apply",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (hasUnsavedChanges) Color.White else TextMuted
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Close Settings",
+                        tint = textColor
                     )
                 }
-            }
-
-            HorizontalDivider(color = Color(0x1FFFFFFF), thickness = 0.5.dp)
-
-            // Pinned Top Live Sandbox Area with Expand/Collapse toggle
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 4.dp, vertical = 2.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Spacer(modifier = Modifier.width(8.dp))
+                Column {
                     Text(
-                        text = "LIVE SANDBOX PREVIEW",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            letterSpacing = 1.2.sp,
-                            fontWeight = FontWeight.Bold
+                        text = "Still Settings",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp
                         ),
-                        color = previewAccentLight
+                        color = textColor
                     )
-                    TextButton(
-                        onClick = { isSandboxExpanded = !isSandboxExpanded },
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp)
-                    ) {
-                        Text(
-                            text = if (isSandboxExpanded) "Hide Preview ▲" else "Show Preview ▼",
-                            fontSize = 11.sp,
-                            color = TextSecondary
-                        )
-                    }
-                }
-
-                AnimatedVisibility(visible = isSandboxExpanded) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(bottom = 6.dp)
-                    ) {
-                        LiveSandboxPreview(
-                            settings = previewSettings,
-                            customBitmap = previewBitmap
-                        )
-
-                        if (hasUnsavedChanges) {
-                            Row(
-                                modifier = Modifier.padding(top = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                TextButton(
-                                    onClick = { previewSettings = settings }
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Undo,
-                                        contentDescription = null,
-                                        tint = previewAccentLight,
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = "Discard Preview Tweaks",
-                                        fontSize = 12.sp,
-                                        color = previewAccentLight
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    Text(
+                        text = currentSection.label,
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                        color = textSecondaryColor
+                    )
                 }
             }
 
-            // Category Segmented Tabs
+            // Section Filter Tabs
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp)
-                    .horizontalScroll(rememberScrollState()),
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                tabs.forEachIndexed { index, title ->
-                    val isSelected = selectedTabIndex == index
+                SettingsSection.values().forEach { section ->
+                    val isSelected = currentSection == section
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (isSelected) previewAccent.copy(alpha = 0.35f) else Color(0x22FFFFFF),
-                        border = if (isSelected) androidx.compose.foundation.BorderStroke(1.5.dp, previewAccentLight) else null,
-                        modifier = Modifier.clickable { selectedTabIndex = index }
+                        shape = RoundedCornerShape(20.dp),
+                        color = if (isSelected) accent.copy(alpha = 0.25f) else Color(0x10FFFFFF),
+                        border = if (isSelected) BorderStroke(1.dp, accentLight) else BorderStroke(1.dp, Color(0x14FFFFFF)),
+                        modifier = Modifier.clickable { currentSection = section }
                     ) {
-                        Text(
-                            text = title,
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                fontSize = 13.sp
-                            ),
-                            color = if (isSelected) TextPrimary else TextSecondary,
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // Scrollable Category Content Area
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp, vertical = 8.dp)
-            ) {
-                when (selectedTabIndex) {
-                    0 -> {
-                        // ==========================================
-                        // TAB 1: THEME STUDIO
-                        // ==========================================
-                        SectionHeader("CURATED CINEMA WALLPAPERS")
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            WallpaperTheme.values().forEach { theme ->
-                                val isSelected = previewSettings.wallpaperTheme == theme
-                                Surface(
-                                    shape = RoundedCornerShape(14.dp),
-                                    color = if (isSelected) Color(theme.accentHex).copy(alpha = 0.28f) else Color(0x1AFFFFFF),
-                                    border = if (isSelected) androidx.compose.foundation.BorderStroke(2.dp, Color(theme.accentLightHex)) else androidx.compose.foundation.BorderStroke(1.dp, Color(0x18FFFFFF)),
-                                    modifier = Modifier
-                                        .width(140.dp)
-                                        .clickable {
-                                            previewSettings = previewSettings.copy(
-                                                wallpaperTheme = theme,
-                                                customAccentHex = theme.accentHex,
-                                                customAccentLightHex = theme.accentLightHex
-                                            )
-                                        }
-                                ) {
-                                    Column(
-                                        modifier = Modifier.padding(8.dp)
-                                    ) {
-                                        // 3:4 Portrait Thumbnail Box
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(160.dp)
-                                                .clip(RoundedCornerShape(10.dp))
-                                                .background(Color(0xFF15171E))
-                                        ) {
-                                            if (theme == WallpaperTheme.CUSTOM_PHOTO) {
-                                                if (previewBitmap != null) {
-                                                    Image(
-                                                        bitmap = previewBitmap!!.asImageBitmap(),
-                                                        contentDescription = null,
-                                                        contentScale = ContentScale.Crop,
-                                                        modifier = Modifier.fillMaxSize()
-                                                    )
-                                                } else {
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .fillMaxSize()
-                                                            .background(Color(0x33FFFFFF)),
-                                                        contentAlignment = Alignment.Center
-                                                    ) {
-                                                        Icon(
-                                                            imageVector = Icons.Outlined.Image,
-                                                            contentDescription = null,
-                                                            tint = Color(theme.accentHex),
-                                                            modifier = Modifier.size(32.dp)
-                                                        )
-                                                    }
-                                                }
-                                            } else if (theme == WallpaperTheme.SYSTEM_WALLPAPER) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .fillMaxSize()
-                                                        .background(Color(0xFF182234)),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    Column(
-                                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                                                    ) {
-                                                        Icon(
-                                                            imageVector = Icons.Outlined.Home,
-                                                            contentDescription = null,
-                                                            tint = Color(theme.accentHex),
-                                                            modifier = Modifier.size(32.dp)
-                                                        )
-                                                        Text(
-                                                            text = "Live",
-                                                            fontSize = 11.sp,
-                                                            fontWeight = FontWeight.Bold,
-                                                            color = Color(theme.accentLightHex)
-                                                        )
-                                                    }
-                                                }
-                                            } else if (theme.assetFileName != null) {
-                                                val thumb = remember(theme.assetFileName) {
-                                                    AssetWallpaperLoader.loadThumbnail(context, theme.assetFileName, 280, 360)
-                                                }
-                                                if (thumb != null) {
-                                                    Image(
-                                                        bitmap = thumb.asImageBitmap(),
-                                                        contentDescription = theme.label,
-                                                        contentScale = ContentScale.Crop,
-                                                        modifier = Modifier.fillMaxSize()
-                                                    )
-                                                } else {
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .fillMaxSize()
-                                                            .background(
-                                                                Brush.verticalGradient(
-                                                                    listOf(Color(theme.topColorHex), Color(theme.bottomColorHex))
-                                                                )
-                                                            )
-                                                    )
-                                                }
-                                            } else {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .fillMaxSize()
-                                                        .background(
-                                                            Brush.verticalGradient(
-                                                                listOf(Color(theme.topColorHex), Color(theme.bottomColorHex))
-                                                            )
-                                                        )
-                                                )
-                                            }
-
-                                            // Glowing Live Video badge for video wallpaper themes
-                                            if (theme.liveVideoFileName != null) {
-                                                Surface(
-                                                    color = Color(0xDD0C0D11),
-                                                    shape = RoundedCornerShape(6.dp),
-                                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(theme.accentLightHex).copy(alpha = 0.7f)),
-                                                    modifier = Modifier
-                                                        .align(Alignment.TopStart)
-                                                        .padding(6.dp)
-                                                ) {
-                                                    Text(
-                                                        text = "🎬 Live Video",
-                                                        fontSize = 9.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = Color(theme.accentLightHex),
-                                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-                                                    )
-                                                }
-                                            }
-
-                                            // Accent indicator chip in top-right corner
-                                            Box(
-                                                modifier = Modifier
-                                                    .align(Alignment.TopEnd)
-                                                    .padding(6.dp)
-                                                    .size(14.dp)
-                                                    .background(Color(theme.accentHex), CircleShape)
-                                                    .border(1.5.dp, Color.White.copy(alpha = 0.8f), CircleShape)
-                                            )
-
-                                            // Selection check badge in bottom-right corner
-                                            if (isSelected) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .align(Alignment.BottomEnd)
-                                                        .padding(6.dp)
-                                                        .size(20.dp)
-                                                        .background(Color(theme.accentHex), CircleShape),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Check,
-                                                        contentDescription = null,
-                                                        tint = Color.White,
-                                                        modifier = Modifier.size(14.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
-
-                                        Spacer(modifier = Modifier.height(8.dp))
-
-                                        // Title
-                                        Text(
-                                            text = theme.label,
-                                            style = MaterialTheme.typography.bodyMedium.copy(
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
-                                                fontSize = 12.sp
-                                            ),
-                                            color = if (isSelected) TextPrimary else TextSecondary,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-
-                                        Spacer(modifier = Modifier.height(2.dp))
-
-                                        // Description
-                                        Text(
-                                            text = theme.description,
-                                            style = MaterialTheme.typography.bodySmall.copy(
-                                                fontSize = 10.sp,
-                                                lineHeight = 13.sp
-                                            ),
-                                            color = TextMuted,
-                                            maxLines = 2,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        // Custom Photo Wallpaper Picker Button
-                        Button(
-                            onClick = { photoPickerLauncher.launch("image/*") },
-                            colors = ButtonDefaults.buttonColors(containerColor = previewAccent.copy(alpha = 0.25f)),
-                            shape = RoundedCornerShape(12.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, previewAccentLight.copy(alpha = 0.4f)),
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Outlined.Image,
+                                imageVector = section.icon,
                                 contentDescription = null,
-                                tint = previewAccentLight,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = if (previewSettings.wallpaperTheme == WallpaperTheme.CUSTOM_PHOTO && !previewSettings.customPhotoPath.isNullOrEmpty()) {
-                                    "Change Photo & Re-Extract Palette"
-                                } else {
-                                    "Choose Custom Photo & Extract Palette"
-                                },
-                                color = TextPrimary,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(18.dp))
-
-                        // Aesthetic Accent Presets
-                        SectionHeader("AESTHETIC ACCENT PRESETS")
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            AccentSwatch.values().forEach { swatch ->
-                                val isSelected = previewSettings.customAccentHex == swatch.hex
-                                Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = if (isSelected) Color(swatch.hex).copy(alpha = 0.35f) else Color(0x22FFFFFF),
-                                    border = if (isSelected) androidx.compose.foundation.BorderStroke(2.dp, Color(swatch.lightHex)) else null,
-                                    modifier = Modifier.clickable {
-                                        previewSettings = previewSettings.copy(
-                                            customAccentHex = swatch.hex,
-                                            customAccentLightHex = swatch.lightHex
-                                        )
-                                    }
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(16.dp)
-                                                .background(Color(swatch.hex), CircleShape)
-                                        )
-                                        Text(
-                                            text = swatch.label,
-                                            style = MaterialTheme.typography.bodySmall.copy(
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                                fontSize = 12.sp
-                                            ),
-                                            color = if (isSelected) TextPrimary else TextSecondary
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(18.dp))
-
-                        // Live Ambient Motion Switch
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = Color(0x18FFFFFF),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x22FFFFFF)),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "✨ Live Ambient Motion",
-                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                        color = TextPrimary
-                                    )
-                                    Text(
-                                        text = "Smooth seamless cinematic motion on wallpapers",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = TextSecondary
-                                    )
-                                }
-                                Switch(
-                                    checked = previewSettings.liveWallpaperEnabled,
-                                    onCheckedChange = {
-                                        previewSettings = previewSettings.copy(liveWallpaperEnabled = it)
-                                    },
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = Color.White,
-                                        checkedTrackColor = previewAccent
-                                    )
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(18.dp))
-
-                        // Wallpaper Dimming Scrim
-                        SliderSetting(
-                            title = "Wallpaper Dimming (Dark Scrim)",
-                            valueDisplay = "${previewSettings.scrimOpacityPercent}%",
-                            value = previewSettings.scrimOpacityPercent.toFloat(),
-                            valueRange = 0f..90f,
-                            accentColor = previewAccent,
-                            onValueChange = {
-                                previewSettings = previewSettings.copy(scrimOpacityPercent = it.roundToInt())
-                            }
-                        )
-                    }
-
-                    1 -> {
-                        // ==========================================
-                        // TAB 2: ICONS & STYLE
-                        // ==========================================
-                        SectionHeader("ICON THEME STYLE")
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            IconStyle.values().forEach { style ->
-                                val isSelected = previewSettings.iconStyle == style
-                                ChipOption(
-                                    label = style.label,
-                                    isSelected = isSelected,
-                                    accentColor = previewAccent,
-                                    accentLight = previewAccentLight,
-                                    onClick = { previewSettings = previewSettings.copy(iconStyle = style) }
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        SectionHeader("THEMING CRITERIA (GENTLE / PRESERVE DETAILS)")
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            IconThemingMode.values().forEach { mode ->
-                                val isSelected = previewSettings.iconThemingMode == mode
-                                ChipOption(
-                                    label = mode.label,
-                                    isSelected = isSelected,
-                                    accentColor = previewAccent,
-                                    accentLight = previewAccentLight,
-                                    onClick = { previewSettings = previewSettings.copy(iconThemingMode = mode) }
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        SectionHeader("ICON CONTAINER SHAPE")
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            IconShape.values().forEach { shape ->
-                                val isSelected = previewSettings.iconShape == shape
-                                ChipOption(
-                                    label = shape.label,
-                                    isSelected = isSelected,
-                                    accentColor = previewAccent,
-                                    accentLight = previewAccentLight,
-                                    onClick = { previewSettings = previewSettings.copy(iconShape = shape) },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(18.dp))
-
-                        SliderSetting(
-                            title = "App Icon Size",
-                            valueDisplay = "${previewSettings.iconSizeDp} dp",
-                            value = previewSettings.iconSizeDp.toFloat(),
-                            valueRange = 18f..38f,
-                            accentColor = previewAccent,
-                            onValueChange = {
-                                previewSettings = previewSettings.copy(iconSizeDp = it.roundToInt())
-                            }
-                        )
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        SliderSetting(
-                            title = "Screen Edge Margin",
-                            valueDisplay = "${previewSettings.edgePaddingDp} dp",
-                            value = previewSettings.edgePaddingDp.toFloat(),
-                            valueRange = 24f..64f,
-                            accentColor = previewAccent,
-                            onValueChange = {
-                                previewSettings = previewSettings.copy(edgePaddingDp = it.roundToInt())
-                            }
-                        )
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        SliderSetting(
-                            title = "Row Spacing / Height",
-                            valueDisplay = "${previewSettings.rowHeightDp} dp",
-                            value = previewSettings.rowHeightDp.toFloat(),
-                            valueRange = 36f..60f,
-                            accentColor = previewAccent,
-                            onValueChange = {
-                                previewSettings = previewSettings.copy(rowHeightDp = it.roundToInt())
-                            }
-                        )
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        SliderSetting(
-                            title = "Label Font Size",
-                            valueDisplay = "${previewSettings.textSizeSp} sp",
-                            value = previewSettings.textSizeSp.toFloat(),
-                            valueRange = 12f..20f,
-                            accentColor = previewAccent,
-                            onValueChange = {
-                                previewSettings = previewSettings.copy(textSizeSp = it.roundToInt())
-                            }
-                        )
-                    }
-
-                    2 -> {
-                        // ==========================================
-                        // TAB 3: CLOCK & TYPOGRAPHY
-                        // ==========================================
-                        ToggleRow(
-                            title = "Show Minimalist Clock",
-                            checked = previewSettings.showClock,
-                            accentColor = previewAccent,
-                            onCheckedChange = { previewSettings = previewSettings.copy(showClock = it) }
-                        )
-
-                        if (previewSettings.showClock) {
-                            Spacer(modifier = Modifier.height(12.dp))
-                            SectionHeader("CLOCK TYPOGRAPHY STYLE")
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                ClockStyle.values().forEach { style ->
-                                    val isSelected = previewSettings.clockStyle == style
-                                    ChipOption(
-                                        label = style.label,
-                                        isSelected = isSelected,
-                                        accentColor = previewAccent,
-                                        accentLight = previewAccentLight,
-                                        onClick = { previewSettings = previewSettings.copy(clockStyle = style) }
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            SliderSetting(
-                                title = "Clock Font Size",
-                                valueDisplay = "${previewSettings.clockFontSizeSp} sp",
-                                value = previewSettings.clockFontSizeSp.toFloat(),
-                                valueRange = 32f..72f,
-                                accentColor = previewAccent,
-                                onValueChange = {
-                                    previewSettings = previewSettings.copy(clockFontSizeSp = it.roundToInt())
-                                }
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        ToggleRow(
-                            title = "Show Date & Weather Line",
-                            checked = previewSettings.showDate,
-                            accentColor = previewAccent,
-                            onCheckedChange = { previewSettings = previewSettings.copy(showDate = it) }
-                        )
-
-                        ToggleRow(
-                            title = "Show Battery & Alarm Status",
-                            checked = previewSettings.showBatteryAndAlarm,
-                            accentColor = previewAccent,
-                            onCheckedChange = { previewSettings = previewSettings.copy(showBatteryAndAlarm = it) }
-                        )
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        SliderSetting(
-                            title = "Vertical Position Offset",
-                            valueDisplay = "${previewSettings.favoritesTopOffsetDp} dp",
-                            value = previewSettings.favoritesTopOffsetDp.toFloat(),
-                            valueRange = 0f..180f,
-                            accentColor = previewAccent,
-                            onValueChange = {
-                                previewSettings = previewSettings.copy(favoritesTopOffsetDp = it.roundToInt())
-                            }
-                        )
-                    }
-
-                    3 -> {
-                        // ==========================================
-                        // TAB 4: WAVE & ERGONOMICS
-                        // ==========================================
-                        SectionHeader("VERTICAL WAVE ALIGNMENT")
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            WaveVerticalPosition.values().forEach { pos ->
-                                val isSelected = previewSettings.waveVerticalPosition == pos
-                                ChipOption(
-                                    label = pos.label,
-                                    isSelected = isSelected,
-                                    accentColor = previewAccent,
-                                    accentLight = previewAccentLight,
-                                    onClick = { previewSettings = previewSettings.copy(waveVerticalPosition = pos) },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        SectionHeader("WAVE VISIBILITY MODE")
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            WaveVisibility.values().forEach { vis ->
-                                val isSelected = previewSettings.waveVisibility == vis
-                                ChipOption(
-                                    label = vis.label,
-                                    isSelected = isSelected,
-                                    accentColor = previewAccent,
-                                    accentLight = previewAccentLight,
-                                    onClick = { previewSettings = previewSettings.copy(waveVisibility = vis) }
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        SliderSetting(
-                            title = "Wave Vertical Height",
-                            valueDisplay = "${previewSettings.waveHeightPercent}%",
-                            value = previewSettings.waveHeightPercent.toFloat(),
-                            valueRange = 40f..90f,
-                            accentColor = previewAccent,
-                            onValueChange = {
-                                previewSettings = previewSettings.copy(waveHeightPercent = it.roundToInt())
-                            }
-                        )
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        SliderSetting(
-                            title = "Wave Letter Font Size",
-                            valueDisplay = "${previewSettings.waveLetterSizeSp} sp",
-                            value = previewSettings.waveLetterSizeSp.toFloat(),
-                            valueRange = 8f..14f,
-                            accentColor = previewAccent,
-                            onValueChange = {
-                                previewSettings = previewSettings.copy(waveLetterSizeSp = it.roundToInt())
-                            }
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        ToggleRow(
-                            title = "Left-Handed Wave Mode",
-                            checked = previewSettings.waveOnLeftSide,
-                            accentColor = previewAccent,
-                            onCheckedChange = { previewSettings = previewSettings.copy(waveOnLeftSide = it) }
-                        )
-
-                        ToggleRow(
-                            title = "Swipe Up on Home to Search",
-                            checked = previewSettings.swipeUpToSearch,
-                            accentColor = previewAccent,
-                            onCheckedChange = { previewSettings = previewSettings.copy(swipeUpToSearch = it) }
-                        )
-                    }
-
-                    4 -> {
-                        // ==========================================
-                        // TAB 5: ABOUT & UPDATES
-                        // ==========================================
-                        SectionHeader("SYSTEM & DEFAULT LAUNCHER")
-
-                        Surface(
-                            shape = RoundedCornerShape(14.dp),
-                            color = Color(0x22FFFFFF),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onRequestDefaultLauncher() }
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(14.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .background(previewAccent.copy(alpha = 0.3f), CircleShape),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Home,
-                                        contentDescription = null,
-                                        tint = previewAccentLight,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Set as Default Launcher",
-                                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
-                                        color = TextPrimary
-                                    )
-                                    Text(
-                                        text = "Ensure Niagara handles the home button and gesture navigation",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = TextSecondary
-                                    )
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        SectionHeader("IN-APP UPDATER & BUILD")
-                        Surface(
-                            shape = RoundedCornerShape(14.dp),
-                            color = Color(0x22FFFFFF),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onOpenUpdates() }
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(14.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .background(previewAccent.copy(alpha = 0.3f), CircleShape),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.SystemUpdate,
-                                        contentDescription = null,
-                                        tint = previewAccentLight,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Check for Updates",
-                                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
-                                        color = TextPrimary
-                                    )
-                                    Text(
-                                        text = "Niagara Launcher v1.0.6 • Seamless OTA updates",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = TextSecondary
-                                    )
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(20.dp))
-
-                        // Reset All Defaults Button
-                        Button(
-                            onClick = onResetDefaults,
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0x33FFFFFF)),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.RestartAlt,
-                                contentDescription = null,
-                                tint = TextPrimary,
+                                tint = if (isSelected) accentLight else textSecondaryColor,
                                 modifier = Modifier.size(16.dp)
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Reset All Settings to Factory Default",
-                                color = TextPrimary,
-                                fontSize = 13.sp
+                                text = section.label,
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    fontSize = 12.sp
+                                ),
+                                color = if (isSelected) textColor else textSecondaryColor
                             )
                         }
                     }
                 }
-
-                Spacer(modifier = Modifier.height(72.dp))
             }
-        }
 
-        // Floating Bottom Bar when there are unsaved changes
-        AnimatedVisibility(
-            visible = hasUnsavedChanges,
-            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(horizontal = 24.dp, vertical = 20.dp)
-        ) {
-            Surface(
-                shape = CircleShape,
-                color = previewAccent,
-                shadowElevation = 12.dp,
+            Spacer(modifier = Modifier.height(8.dp))
+            HorizontalDivider(color = Color(0x14FFFFFF))
+
+            // Section Content Body
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable(onClick = applyChanges)
+                    .weight(1f)
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.CheckCircle,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(20.dp)
+                when (currentSection) {
+                    SettingsSection.APPEARANCE -> AppearanceSection(viewModel, settings, textColor, textSecondaryColor, accent, accentLight)
+                    SettingsSection.FAVORITES -> FavoritesSection(viewModel, uiState, textColor, textSecondaryColor, accent, accentLight)
+                    SettingsSection.FOCUS -> FocusSection(viewModel, settings, textColor, textSecondaryColor, accent, accentLight)
+                    SettingsSection.YOUTUBE -> YouTubeSection(
+                        viewModel = viewModel,
+                        settings = settings,
+                        textColor = textColor,
+                        textSecondaryColor = textSecondaryColor,
+                        accent = accent,
+                        accentLight = accentLight,
+                        onRequestDisableGate = { showDisableGateDialog = true },
+                        onOpenGateDirectly = {
+                            onDismissRequest()
+                            viewModel.setYouTubeGateActive(true)
+                        }
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Apply Changes to Home Screen",
-                        style = MaterialTheme.typography.bodyLarge.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp
-                        ),
-                        color = Color.White
-                    )
+                    SettingsSection.UPDATES -> UpdatesSection(viewModel, uiState.updateState, textColor, textSecondaryColor, accent, accentLight)
+                    SettingsSection.PRIVACY -> PrivacySection(context, textColor, textSecondaryColor, accent, accentLight)
+                    SettingsSection.ABOUT -> AboutSection(textColor, textSecondaryColor, accent, accentLight)
                 }
             }
         }
+    }
 
-        // Inline Confirmation Banner when changes are applied
-        AnimatedVisibility(
-            visible = showAppliedBanner,
-            enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
-            exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 64.dp)
-        ) {
-            Surface(
-                shape = CircleShape,
-                color = Color(0xFA1E222A),
-                border = androidx.compose.foundation.BorderStroke(1.dp, previewAccentLight),
-                shadowElevation = 12.dp
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+    // Explicit confirmation dialog for disabling YouTube gate
+    if (showDisableGateDialog) {
+        AlertDialog(
+            onDismissRequest = { showDisableGateDialog = false },
+            title = {
+                Text(
+                    text = "Disable Intentional YouTube Gate?",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp,
+                    color = textColor
+                )
+            },
+            text = {
+                Text(
+                    text = "Disabling the gate will open the standard YouTube application with recommendations, trending feeds, and algorithmic rabbit holes. Are you sure you want to disable intentional viewing?",
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                    color = textSecondaryColor
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.updateSettings { it.copy(interceptYouTube = false) }
+                        showDisableGateDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = DangerRed)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = null,
-                        tint = previewAccentLight,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Text(
-                        text = "✓ Changes applied to home screen",
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        ),
-                        color = TextPrimary
-                    )
+                    Text("Disable Gate", fontWeight = FontWeight.Bold)
                 }
-            }
-        }
-        }
-    }
-}
-
-@Composable
-private fun SectionHeader(title: String) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.labelSmall.copy(
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 1.sp
-        ),
-        color = TextMuted,
-        modifier = Modifier.padding(bottom = 8.dp)
-    )
-}
-
-@Composable
-private fun ChipOption(
-    label: String,
-    isSelected: Boolean,
-    accentColor: Color,
-    accentLight: Color,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = if (isSelected) accentColor.copy(alpha = 0.35f) else Color(0x22FFFFFF),
-        border = if (isSelected) androidx.compose.foundation.BorderStroke(1.5.dp, accentLight) else null,
-        modifier = modifier.clickable(onClick = onClick)
-    ) {
-        Box(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                ),
-                color = if (isSelected) TextPrimary else TextSecondary
-            )
-        }
-    }
-}
-
-@Composable
-private fun SliderSetting(
-    title: String,
-    valueDisplay: String,
-    value: Float,
-    valueRange: ClosedFloatingPointRange<Float>,
-    accentColor: Color,
-    onValueChange: (Float) -> Unit
-) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                color = TextPrimary
-            )
-            Text(
-                text = valueDisplay,
-                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                color = accentColor
-            )
-        }
-
-        Slider(
-            value = value,
-            onValueChange = onValueChange,
-            valueRange = valueRange,
-            colors = SliderDefaults.colors(
-                thumbColor = Color.White,
-                activeTrackColor = accentColor,
-                inactiveTrackColor = Color(0x33FFFFFF)
-            )
+            },
+            dismissButton = {
+                TextButton(onClick = { showDisableGateDialog = false }) {
+                    Text("Keep Gate Enabled", color = textColor)
+                }
+            },
+            containerColor = Color(0xFF1C1C1E)
         )
     }
 }
 
+// ==========================================
+// 1. APPEARANCE SECTION
+// ==========================================
 @Composable
-private fun ToggleRow(
-    title: String,
+private fun AppearanceSection(
+    viewModel: LauncherViewModel,
+    settings: com.niagaraclone.launcher.data.model.LauncherSettings,
+    textColor: Color,
+    textSecondaryColor: Color,
+    accent: Color,
+    accentLight: Color
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
+        // Theme Mode
+        item {
+            SettingHeader(title = "Theme", description = "Choose visual contrast level")
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                StillThemeMode.values().forEach { mode ->
+                    val isSelected = settings.themeMode == mode
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isSelected) accent.copy(alpha = 0.3f) else Color(0x10FFFFFF),
+                        border = if (isSelected) BorderStroke(1.dp, accentLight) else BorderStroke(1.dp, Color(0x18FFFFFF)),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { viewModel.updateSettings { it.copy(themeMode = mode) } }
+                    ) {
+                        Text(
+                            text = mode.label,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 13.sp
+                            ),
+                            color = if (isSelected) textColor else textSecondaryColor,
+                            modifier = Modifier.padding(vertical = 12.dp),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    }
+                }
+            }
+        }
+
+        // Icon Presentation
+        item {
+            SettingHeader(title = "Icon Presentation", description = "Minimalist Phone text-only vs simple monochrome icons")
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = if (settings.showAppIcons) "Monochrome Icons" else "Pure Typography (Text Only)",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = textColor
+                    )
+                    Text(
+                        text = if (settings.showAppIcons) "Displays simple desaturated icons" else "No icons; eliminates visual triggers",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = textSecondaryColor
+                    )
+                }
+                Switch(
+                    checked = settings.showAppIcons,
+                    onCheckedChange = { viewModel.updateSettings { s -> s.copy(showAppIcons = it) } },
+                    colors = SwitchDefaults.colors(checkedThumbColor = accentLight, checkedTrackColor = accent)
+                )
+            }
+        }
+
+        // Text Size
+        item {
+            SettingHeader(title = "Text Size", description = "${settings.textSizeSp} sp")
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                listOf(14 to "Small", 16 to "Medium", 18 to "Large").forEach { (size, label) ->
+                    val isSelected = settings.textSizeSp == size
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (isSelected) accent.copy(alpha = 0.3f) else Color(0x10FFFFFF),
+                        border = if (isSelected) BorderStroke(1.dp, accentLight) else BorderStroke(1.dp, Color(0x18FFFFFF)),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { viewModel.updateSettings { it.copy(textSizeSp = size) } }
+                    ) {
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            ),
+                            color = if (isSelected) textColor else textSecondaryColor,
+                            modifier = Modifier.padding(vertical = 10.dp),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    }
+                }
+            }
+        }
+
+        // Header Elements (Clock, 24h, Date, Battery)
+        item {
+            SettingHeader(title = "Home Screen Elements", description = "Configure information displayed on home screen")
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                SettingToggleRow(
+                    label = "Digital Clock",
+                    checked = settings.showClock,
+                    textColor = textColor,
+                    textSecondaryColor = textSecondaryColor,
+                    accent = accent,
+                    accentLight = accentLight,
+                    onCheckedChange = { viewModel.updateSettings { s -> s.copy(showClock = it) } }
+                )
+                SettingToggleRow(
+                    label = "24-Hour Time Format",
+                    checked = settings.clock24Hour,
+                    textColor = textColor,
+                    textSecondaryColor = textSecondaryColor,
+                    accent = accent,
+                    accentLight = accentLight,
+                    onCheckedChange = { viewModel.updateSettings { s -> s.copy(clock24Hour = it) } }
+                )
+                SettingToggleRow(
+                    label = "Date & Day of Week",
+                    checked = settings.showDate,
+                    textColor = textColor,
+                    textSecondaryColor = textSecondaryColor,
+                    accent = accent,
+                    accentLight = accentLight,
+                    onCheckedChange = { viewModel.updateSettings { s -> s.copy(showDate = it) } }
+                )
+                SettingToggleRow(
+                    label = "Battery Percentage",
+                    checked = settings.showBattery,
+                    textColor = textColor,
+                    textSecondaryColor = textSecondaryColor,
+                    accent = accent,
+                    accentLight = accentLight,
+                    onCheckedChange = { viewModel.updateSettings { s -> s.copy(showBattery = it) } }
+                )
+            }
+        }
+
+        // Subtle Accent Color
+        item {
+            SettingHeader(title = "Subtle Accent Color", description = "One restrained highlight color")
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                StillAccent.values().forEach { item ->
+                    val isSelected = settings.accent == item
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color(item.hex))
+                            .clickable { viewModel.updateSettings { it.copy(accent = item) } },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isSelected) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = "Selected",
+                                tint = Color.Black,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        item { Spacer(modifier = Modifier.height(32.dp)) }
+    }
+}
+
+// ==========================================
+// 2. FAVORITES & APPLICATIONS SECTION
+// ==========================================
+@Composable
+private fun FavoritesSection(
+    viewModel: LauncherViewModel,
+    uiState: com.niagaraclone.launcher.ui.LauncherUiState,
+    textColor: Color,
+    textSecondaryColor: Color,
+    accent: Color,
+    accentLight: Color
+) {
+    var searchAppRuleQuery by remember { mutableStateOf("") }
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            SettingHeader(
+                title = "Favorites Ordering",
+                description = "Favorites appear on your home screen. Reorder or remove them."
+            )
+        }
+
+        if (uiState.favoriteApps.isEmpty()) {
+            item {
+                Text(
+                    text = "No favorites currently selected.",
+                    color = textSecondaryColor,
+                    fontSize = 13.sp
+                )
+            }
+        } else {
+            items(uiState.favoriteApps.size) { index ->
+                val app = uiState.favoriteApps[index]
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color(0x0EFFFFFF),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = app.label,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                            color = textColor,
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        if (index > 0) {
+                            IconButton(onClick = { viewModel.reorderFavorite(index, index - 1) }) {
+                                Icon(Icons.Default.ArrowUpward, contentDescription = "Up", tint = textSecondaryColor, modifier = Modifier.size(18.dp))
+                            }
+                        }
+                        if (index < uiState.favoriteApps.size - 1) {
+                            IconButton(onClick = { viewModel.reorderFavorite(index, index + 1) }) {
+                                Icon(Icons.Default.ArrowDownward, contentDescription = "Down", tint = textSecondaryColor, modifier = Modifier.size(18.dp))
+                            }
+                        }
+                        IconButton(onClick = { viewModel.removeFavorite(app) }) {
+                            Icon(Icons.Default.Close, contentDescription = "Remove", tint = DangerRed, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            Spacer(modifier = Modifier.height(16.dp))
+            HorizontalDivider(color = Color(0x14FFFFFF))
+            Spacer(modifier = Modifier.height(8.dp))
+            SettingHeader(
+                title = "Application Launch Rules",
+                description = "Set distraction rules: Normal, Delayed (breathing pause), Scheduled (focus hours), or Blocked."
+            )
+            OutlinedTextField(
+                value = searchAppRuleQuery,
+                onValueChange = { searchAppRuleQuery = it },
+                placeholder = { Text("Filter apps to set rule...", color = TextMuted, fontSize = 13.sp) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                shape = RoundedCornerShape(10.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = accentLight,
+                    unfocusedBorderColor = Color(0x22FFFFFF),
+                    focusedTextColor = textColor,
+                    unfocusedTextColor = textColor
+                )
+            )
+        }
+
+        val filteredApps = uiState.allApps.filter {
+            searchAppRuleQuery.isEmpty() || it.label.contains(searchAppRuleQuery, ignoreCase = true)
+        }.take(30)
+
+        items(filteredApps) { app ->
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = Color(0x0AFFFFFF),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = app.label, style = MaterialTheme.typography.bodyMedium, color = textColor)
+                        Text(text = app.launchRule.label, style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp), color = accentLight)
+                    }
+
+                    // Cycle rule button
+                    OutlinedButton(
+                        onClick = {
+                            val nextRule = when (app.launchRule) {
+                                AppLaunchRule.NORMAL -> AppLaunchRule.DELAYED
+                                AppLaunchRule.DELAYED -> AppLaunchRule.SCHEDULED
+                                AppLaunchRule.SCHEDULED -> AppLaunchRule.BLOCKED
+                                AppLaunchRule.BLOCKED -> AppLaunchRule.NORMAL
+                                else -> AppLaunchRule.NORMAL
+                            }
+                            viewModel.setAppLaunchRule(app, nextRule)
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, Color(0x33FFFFFF))
+                    ) {
+                        Text(text = "Change", fontSize = 11.sp, color = textColor)
+                    }
+                }
+            }
+        }
+
+        item { Spacer(modifier = Modifier.height(32.dp)) }
+    }
+}
+
+// ==========================================
+// 3. FOCUS SECTION
+// ==========================================
+@Composable
+private fun FocusSection(
+    viewModel: LauncherViewModel,
+    settings: com.niagaraclone.launcher.data.model.LauncherSettings,
+    textColor: Color,
+    textSecondaryColor: Color,
+    accent: Color,
+    accentLight: Color
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
+        // Active Focus Profile
+        item {
+            SettingHeader(title = "Active Focus Profile", description = "Choose current intentional restriction mode")
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FocusProfile.values().forEach { profile ->
+                    val isSelected = settings.activeFocusProfile == profile
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isSelected) accent.copy(alpha = 0.3f) else Color(0x10FFFFFF),
+                        border = if (isSelected) BorderStroke(1.dp, accentLight) else BorderStroke(1.dp, Color(0x18FFFFFF)),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { viewModel.updateSettings { it.copy(activeFocusProfile = profile) } }
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = profile.label,
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    fontSize = 12.sp
+                                ),
+                                color = if (isSelected) textColor else textSecondaryColor
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Breathing Pause Duration
+        item {
+            SettingHeader(title = "Breathing Delay Pause", description = "Seconds to pause impulse launches: ${settings.breathingDelaySeconds}s")
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                listOf(3, 5, 10, 15).forEach { seconds ->
+                    val isSelected = settings.breathingDelaySeconds == seconds
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (isSelected) accent.copy(alpha = 0.3f) else Color(0x10FFFFFF),
+                        border = if (isSelected) BorderStroke(1.dp, accentLight) else BorderStroke(1.dp, Color(0x18FFFFFF)),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { viewModel.updateSettings { it.copy(breathingDelaySeconds = seconds) } }
+                    ) {
+                        Text(
+                            text = "${seconds}s",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            ),
+                            color = if (isSelected) textColor else textSecondaryColor,
+                            modifier = Modifier.padding(vertical = 8.dp),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    }
+                }
+            }
+        }
+
+        // Study Profile Schedule
+        item {
+            SettingHeader(title = "Study Profile Schedule", description = "Configured study focus window (${settings.studyStartHour}:00 - ${settings.studyEndHour}:00)")
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0x0EFFFFFF),
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Text(
+                        text = "Active between ${settings.studyStartHour}:00 and ${settings.studyEndHour}:00",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = textColor
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Apps configured with the 'Scheduled' rule will be blocked during these hours.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = textSecondaryColor
+                    )
+                }
+            }
+        }
+
+        // Sleep Profile Schedule
+        item {
+            SettingHeader(title = "Sleep Profile Schedule", description = "Bedtime hours (${settings.sleepStartHour}:00 - ${settings.sleepEndHour}:00, crosses midnight)")
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0x0EFFFFFF),
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Text(
+                        text = "Bedtime from ${settings.sleepStartHour}:00 to ${settings.sleepEndHour}:00",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = textColor
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Restricts non-essential applications across midnight to promote healthy sleep habits.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = textSecondaryColor
+                    )
+                }
+            }
+        }
+
+        item { Spacer(modifier = Modifier.height(32.dp)) }
+    }
+}
+
+// ==========================================
+// 4. YOUTUBE SECTION
+// ==========================================
+@Composable
+private fun YouTubeSection(
+    viewModel: LauncherViewModel,
+    settings: com.niagaraclone.launcher.data.model.LauncherSettings,
+    textColor: Color,
+    textSecondaryColor: Color,
+    accent: Color,
+    accentLight: Color,
+    onRequestDisableGate: () -> Unit,
+    onOpenGateDirectly: () -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
+        // Built-in Link Gate Master Switch
+        item {
+            SettingHeader(
+                title = "Built-in YouTube Link Gate",
+                description = "Enforces single-video intentional viewing without recommendations or algorithmic rabbit holes"
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = if (settings.interceptYouTube) "Gate Enabled (Protected)" else "Gate Disabled (Unprotected)",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = if (settings.interceptYouTube) accentLight else DangerRed
+                    )
+                    Text(
+                        text = if (settings.interceptYouTube) "Intercepts YouTube launches to enter URL gate" else "Standard YouTube app will open directly",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = textSecondaryColor
+                    )
+                }
+                Switch(
+                    checked = settings.interceptYouTube,
+                    onCheckedChange = { checked ->
+                        if (checked) {
+                            viewModel.updateSettings { it.copy(interceptYouTube = true) }
+                        } else {
+                            onRequestDisableGate()
+                        }
+                    },
+                    colors = SwitchDefaults.colors(checkedThumbColor = accentLight, checkedTrackColor = accent)
+                )
+            }
+        }
+
+        // Test Link Gate Button
+        item {
+            Button(
+                onClick = onOpenGateDirectly,
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = accent),
+                modifier = Modifier.fillMaxWidth().height(46.dp)
+            ) {
+                Icon(Icons.Outlined.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Open Intentional YouTube Gate", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+            }
+        }
+
+        // Local Playback History
+        item {
+            SettingHeader(title = "Playback History", description = "Strictly local history for replaying videos without recommendations")
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                SettingToggleRow(
+                    label = "Save Local History",
+                    checked = settings.youtubeHistoryEnabled,
+                    textColor = textColor,
+                    textSecondaryColor = textSecondaryColor,
+                    accent = accent,
+                    accentLight = accentLight,
+                    onCheckedChange = { viewModel.updateSettings { s -> s.copy(youtubeHistoryEnabled = it) } }
+                )
+
+                OutlinedButton(
+                    onClick = { viewModel.clearYouTubeHistory() },
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, Color(0x33FFFFFF)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Delete, contentDescription = null, tint = textSecondaryColor, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Clear All Local History", color = textColor, fontSize = 13.sp)
+                }
+            }
+        }
+
+        item { Spacer(modifier = Modifier.height(32.dp)) }
+    }
+}
+
+// ==========================================
+// 5. UPDATES SECTION
+// ==========================================
+@Composable
+private fun UpdatesSection(
+    viewModel: LauncherViewModel,
+    updateState: UpdateUiState,
+    textColor: Color,
+    textSecondaryColor: Color,
+    accent: Color,
+    accentLight: Color
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            SettingHeader(
+                title = "Application Updates",
+                description = "Checks GitHub Releases (DALI951/still-launcher) for verified APK updates"
+            )
+        }
+
+        // Current Version Info
+        item {
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = Color(0x0EFFFFFF),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Installed Version: v1.0.0",
+                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                        color = textColor
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Repository: DALI951/still-launcher",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = textSecondaryColor
+                    )
+                }
+            }
+        }
+
+        // Dynamic Update State Box
+        item {
+            when (updateState) {
+                is UpdateUiState.Idle -> {
+                    Button(
+                        onClick = { viewModel.checkForUpdates(force = true) },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = accent),
+                        modifier = Modifier.fillMaxWidth().height(48.dp)
+                    ) {
+                        Icon(Icons.Outlined.SystemUpdate, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Check for Updates Now", fontWeight = FontWeight.SemiBold)
+                    }
+                }
+
+                is UpdateUiState.Checking -> {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        CircularProgressIndicator(color = accentLight, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text("Checking for latest release...", color = textColor, fontSize = 13.sp)
+                    }
+                }
+
+                is UpdateUiState.UpToDate -> {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0x1A2ECC71),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF2ECC71))
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text("You are using the latest version of Still.", color = textColor, fontSize = 13.sp)
+                        }
+                    }
+                }
+
+                is UpdateUiState.UpdateAvailable -> {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0x1F4E8CFF),
+                        border = BorderStroke(1.dp, accentLight),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "Update Available: ${updateState.releaseInfo.tagName}",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = textColor
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = updateState.releaseInfo.releaseNotes.ifEmpty { "Performance improvements and updates." },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = textSecondaryColor
+                            )
+                            Spacer(modifier = Modifier.height(14.dp))
+                            Button(
+                                onClick = { viewModel.startUpdateDownload(updateState.releaseInfo) },
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = accent),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Outlined.CloudDownload, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Download and Install Update", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+
+                is UpdateUiState.Downloading -> {
+                    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                        Text(
+                            text = "Downloading update: ${updateState.progressPercent}% (${String.format("%.1f", updateState.downloadedMb)} MB / ${String.format("%.1f", updateState.totalMb)} MB)",
+                            color = textColor,
+                            fontSize = 13.sp
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        LinearProgressIndicator(
+                            progress = { updateState.progressPercent / 100f },
+                            modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                            color = accentLight,
+                            trackColor = Color(0x33FFFFFF)
+                        )
+                    }
+                }
+
+                is UpdateUiState.ReadyToInstall -> {
+                    Button(
+                        onClick = { viewModel.installPendingUpdate() },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2ECC71)),
+                        modifier = Modifier.fillMaxWidth().height(48.dp)
+                    ) {
+                        Text("Install Downloaded APK Now", fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                is UpdateUiState.Error -> {
+                    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                        Text(text = "Update error: ${updateState.message}", color = DangerRed, fontSize = 13.sp)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedButton(onClick = { viewModel.checkForUpdates(force = true) }) {
+                            Text("Retry Check", color = textColor)
+                        }
+                    }
+                }
+            }
+        }
+
+        item { Spacer(modifier = Modifier.height(32.dp)) }
+    }
+}
+
+// ==========================================
+// 6. PRIVACY & PERMISSIONS SECTION
+// ==========================================
+@Composable
+private fun PrivacySection(
+    context: android.content.Context,
+    textColor: Color,
+    textSecondaryColor: Color,
+    accent: Color,
+    accentLight: Color
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            SettingHeader(
+                title = "Permissions & System Status",
+                description = "Still enforces intentional rules directly. Special permissions are only requested when needed."
+            )
+        }
+
+        // Default Launcher
+        item {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0x0EFFFFFF),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Text(text = "Default Home App", fontWeight = FontWeight.Bold, color = textColor)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Set Still as your default launcher so pressing Home always returns to your calm screen.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = textSecondaryColor
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedButton(
+                        onClick = {
+                            try {
+                                val intent = Intent(Settings.ACTION_HOME_SETTINGS).apply {
+                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                }
+                                context.startActivity(intent)
+                            } catch (_: Exception) {}
+                        },
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Open Default Apps Settings", color = textColor, fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+
+        // Privacy Guarantee
+        item {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0x0EFFFFFF),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Text(text = "Privacy Guarantee", fontWeight = FontWeight.Bold, color = textColor)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "• 100% Offline & Private: No telemetry, no third-party trackers, no user analytics.\n" +
+                                "• Zero Ads or Recommendations.\n" +
+                                "• All settings, favorites, and history remain strictly on your device.",
+                        style = MaterialTheme.typography.bodySmall.copy(lineHeight = 18.sp),
+                        color = textSecondaryColor
+                    )
+                }
+            }
+        }
+
+        item { Spacer(modifier = Modifier.height(32.dp)) }
+    }
+}
+
+// ==========================================
+// 7. ABOUT SECTION
+// ==========================================
+@Composable
+private fun AboutSection(
+    textColor: Color,
+    textSecondaryColor: Color,
+    accent: Color,
+    accentLight: Color
+) {
+    val context = LocalContext.current
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            SettingHeader(title = "About Still", description = "Product details and mission")
+        }
+
+        item {
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = Color(0x0EFFFFFF),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Text(
+                        text = "Still — Minimal Launcher",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 17.sp
+                        ),
+                        color = textColor
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "A minimalist Android home screen designed to eliminate unnecessary stimulation and encourage intentional phone use.",
+                        style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 20.sp),
+                        color = textSecondaryColor
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Text(
+                        text = "Version: 1.0.0\n" +
+                                "Application ID: com.niagaraclone.launcher\n" +
+                                "Repository: https://github.com/DALI951/still-launcher",
+                        style = MaterialTheme.typography.bodySmall.copy(lineHeight = 18.sp),
+                        color = TextMuted
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    OutlinedButton(
+                        onClick = {
+                            try {
+                                val intent = Intent(
+                                    Intent.ACTION_VIEW,
+                                    Uri.parse("https://github.com/DALI951/still-launcher")
+                                ).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK }
+                                context.startActivity(intent)
+                            } catch (_: Exception) {}
+                        },
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("View on GitHub", color = textColor, fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+
+        item { Spacer(modifier = Modifier.height(32.dp)) }
+    }
+}
+
+// ==========================================
+// HELPER COMPOSABLES
+// ==========================================
+@Composable
+private fun SettingHeader(title: String, description: String) {
+    Column {
+        Text(text = title, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, fontSize = 15.sp), color = TextPrimary)
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(text = description, style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp), color = TextSecondary)
+    }
+}
+
+@Composable
+private fun SettingToggleRow(
+    label: String,
     checked: Boolean,
-    accentColor: Color,
+    textColor: Color,
+    textSecondaryColor: Color,
+    accent: Color,
+    accentLight: Color,
     onCheckedChange: (Boolean) -> Unit
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.bodyMedium,
-            color = TextPrimary
-        )
-
+        Text(text = label, style = MaterialTheme.typography.bodyMedium, color = textColor)
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = Color.White,
-                checkedTrackColor = accentColor,
-                uncheckedThumbColor = TextMuted,
-                uncheckedTrackColor = Color(0x33FFFFFF)
-            )
+            colors = SwitchDefaults.colors(checkedThumbColor = accentLight, checkedTrackColor = accent)
         )
     }
 }

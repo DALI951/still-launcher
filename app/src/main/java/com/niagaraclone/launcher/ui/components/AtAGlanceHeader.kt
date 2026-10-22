@@ -4,10 +4,8 @@ import android.content.Context
 import android.content.Intent
 import android.provider.AlarmClock
 import android.provider.CalendarContract
-import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,8 +13,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AccessAlarm
 import androidx.compose.material.icons.outlined.BatteryChargingFull
 import androidx.compose.material.icons.outlined.BatteryFull
 import androidx.compose.material3.Icon
@@ -26,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
@@ -33,13 +33,17 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.niagaraclone.launcher.data.model.ClockStyle
+import com.niagaraclone.launcher.data.model.FocusProfile
 import com.niagaraclone.launcher.data.model.LauncherSettings
 import com.niagaraclone.launcher.data.model.SystemStatus
-import com.niagaraclone.launcher.ui.theme.TextMuted
-import com.niagaraclone.launcher.ui.theme.TextPrimary
-import com.niagaraclone.launcher.ui.theme.TextSecondary
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
+/**
+ * Top Header for Still — Minimal Launcher.
+ * Features large digital clock, date with day of week, and optional small battery indicator.
+ */
 @Composable
 fun AtAGlanceHeader(
     systemStatus: SystemStatus,
@@ -47,171 +51,112 @@ fun AtAGlanceHeader(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val themeAccentLight = Color(settings.activeAccentLightHex)
+    val textColor = Color(settings.themeMode.textHex)
+    val textSecondaryColor = Color(settings.themeMode.textSecondaryHex)
+    val accentLight = Color(settings.activeAccentLightHex)
 
-    // Typography resolution for the selected ClockStyle
-    val (fontFamily, fontWeight, letterSpacing) = when (settings.clockStyle) {
-        ClockStyle.NIAGARA_CLEAN -> Triple(FontFamily.SansSerif, FontWeight.Light, (-1.5).sp)
-        ClockStyle.ROUNDED_MINIMAL -> Triple(FontFamily.SansSerif, FontWeight.Normal, (-0.5).sp)
-        ClockStyle.MODERN_MONO -> Triple(FontFamily.Monospace, FontWeight.Medium, (-1.0).sp)
-        ClockStyle.SERIF_ELEGANT -> Triple(FontFamily.Serif, FontWeight.Light, (-0.5).sp)
-        ClockStyle.THIN_AESTHETIC -> Triple(FontFamily.SansSerif, FontWeight.ExtraLight, (-2.0).sp)
-        ClockStyle.BOLD_COMPACT -> Triple(FontFamily.SansSerif, FontWeight.Bold, (-1.5).sp)
-        ClockStyle.STACKED_MINIMAL -> Triple(FontFamily.SansSerif, FontWeight.Bold, (-2.0).sp)
-        ClockStyle.CLEAN_CONDENSED -> Triple(FontFamily.SansSerif, FontWeight.Light, (-3.5).sp)
+    val formattedTime = remember(systemStatus.timeText, settings.clock24Hour) {
+        try {
+            val format = if (settings.clock24Hour) "HH:mm" else "h:mm"
+            SimpleDateFormat(format, Locale.getDefault()).format(Date())
+        } catch (_: Exception) {
+            systemStatus.timeText.ifEmpty { "12:00" }
+        }
+    }
+
+    val formattedDate = remember(systemStatus.dateText) {
+        try {
+            SimpleDateFormat("EEEE, MMMM d", Locale.getDefault()).format(Date())
+        } catch (_: Exception) {
+            systemStatus.dateText.ifEmpty { "Thursday, October 22" }
+        }
     }
 
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp)
+            .padding(horizontal = 24.dp, vertical = 8.dp)
     ) {
-        // Minimalist Clock Styled per ClockStyle
+        // 1. Digital Clock
         if (settings.showClock) {
-            Column(
-                modifier = Modifier
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) {
-                        launchClock(context)
-                    }
-            ) {
-                if (settings.clockStyle == ClockStyle.STACKED_MINIMAL) {
-                    val timeStr = systemStatus.timeText.ifEmpty { "12:00" }
-                    val parts = timeStr.split(":")
-                    val hours = parts.getOrNull(0) ?: "12"
-                    val minutes = parts.getOrNull(1) ?: "00"
-
-                    Text(
-                        text = hours,
-                        style = TextStyle(
-                            fontFamily = FontFamily.SansSerif,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = (settings.clockFontSizeSp * 1.05f).sp,
-                            letterSpacing = (-2.0).sp,
-                            lineHeight = (settings.clockFontSizeSp * 0.92f).sp,
-                            color = TextPrimary
-                        )
-                    )
-                    Text(
-                        text = minutes,
-                        style = TextStyle(
-                            fontFamily = FontFamily.SansSerif,
-                            fontWeight = FontWeight.Light,
-                            fontSize = (settings.clockFontSizeSp * 1.05f).sp,
-                            letterSpacing = (-2.0).sp,
-                            lineHeight = (settings.clockFontSizeSp * 0.92f).sp,
-                            color = themeAccentLight
-                        )
-                    )
-                } else {
-                    Text(
-                        text = systemStatus.timeText.ifEmpty { "--:--" },
-                        style = TextStyle(
-                            fontFamily = fontFamily,
-                            fontWeight = fontWeight,
-                            fontSize = settings.clockFontSizeSp.sp,
-                            letterSpacing = letterSpacing,
-                            color = TextPrimary
-                        )
-                    )
+            Text(
+                text = formattedTime,
+                style = TextStyle(
+                    fontFamily = FontFamily.SansSerif,
+                    fontWeight = FontWeight.Light,
+                    fontSize = settings.clockFontSizeSp.sp,
+                    letterSpacing = (-1.5).sp,
+                    color = textColor
+                ),
+                modifier = Modifier.clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {
+                    launchClock(context)
                 }
-            }
-            Spacer(modifier = Modifier.height(2.dp))
+            )
         }
 
-        // Date Line with optional Weather / Bullet Integration
+        // 2. Date with Day of Week
         if (settings.showDate) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = formattedDate,
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Normal,
+                    letterSpacing = 0.2.sp
+                ),
+                color = textSecondaryColor,
                 modifier = Modifier.clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null
                 ) {
                     launchCalendar(context)
                 }
-            ) {
-                Text(
-                    text = systemStatus.dateText.ifEmpty { "Today" },
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Normal,
-                        fontSize = 16.sp
-                    ),
-                    color = TextSecondary
-                )
-
-                if (!systemStatus.weatherSummary.isNullOrEmpty()) {
-                    Text(
-                        text = "• ${systemStatus.weatherSummary}",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.Normal,
-                            fontSize = 15.sp
-                        ),
-                        color = TextSecondary
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
+            )
         }
 
-        // Status Row: Battery & Next Alarm
-        if (settings.showBatteryAndAlarm) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                // Battery Status
-                if (systemStatus.batteryLevel >= 0) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (systemStatus.isCharging) {
-                                Icons.Outlined.BatteryChargingFull
-                            } else {
-                                Icons.Outlined.BatteryFull
-                            },
-                            contentDescription = "Battery",
-                            tint = if (systemStatus.isCharging) themeAccentLight else TextMuted,
-                            modifier = Modifier.size(15.dp)
-                        )
-                        Text(
-                            text = "${systemStatus.batteryLevel}%",
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp),
-                            color = if (systemStatus.isCharging) themeAccentLight else TextMuted
-                        )
-                    }
-                }
+        // 3. Optional Small Battery Indicator & Active Focus Pill
+        Row(
+            modifier = Modifier.padding(top = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (settings.showBattery && systemStatus.batteryPercent >= 0) {
+                Icon(
+                    imageVector = if (systemStatus.isCharging) {
+                        Icons.Outlined.BatteryChargingFull
+                    } else {
+                        Icons.Outlined.BatteryFull
+                    },
+                    contentDescription = null,
+                    tint = textSecondaryColor,
+                    modifier = Modifier.size(13.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "${systemStatus.batteryPercent}%${if (systemStatus.isCharging) " • Charging" else ""}",
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                    color = textSecondaryColor
+                )
+            }
 
-                // Next Alarm Status
-                if (!systemStatus.nextAlarm.isNullOrEmpty()) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier.clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) {
-                            launchClock(context)
-                        }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.AccessAlarm,
-                            contentDescription = "Alarm",
-                            tint = TextMuted,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Text(
-                            text = systemStatus.nextAlarm,
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp),
-                            color = TextMuted
-                        )
-                    }
+            if (settings.activeFocusProfile != FocusProfile.DEFAULT) {
+                if (settings.showBattery && systemStatus.batteryPercent >= 0) {
+                    Text(
+                        text = " • ",
+                        color = textSecondaryColor,
+                        fontSize = 12.sp
+                    )
                 }
+                Text(
+                    text = "${settings.activeFocusProfile.label} Mode",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    ),
+                    color = accentLight
+                )
             }
         }
     }
@@ -223,16 +168,14 @@ private fun launchClock(context: Context) {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
         }
         context.startActivity(intent)
-    } catch (e: Exception) {
-        Log.w("AtAGlanceHeader", "Failed to launch alarm activity, fallback to clock", e)
+    } catch (_: Exception) {
         try {
             val fallback = Intent(Intent.ACTION_MAIN).apply {
-                addCategory(Intent.CATEGORY_LAUNCHER)
-                setPackage("com.google.android.deskclock")
+                addCategory(Intent.CATEGORY_APP_CALCULATOR)
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
             context.startActivity(fallback)
-        } catch (ignored: Exception) {}
+        } catch (_: Exception) {}
     }
 }
 
@@ -243,7 +186,5 @@ private fun launchCalendar(context: Context) {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
         }
         context.startActivity(intent)
-    } catch (e: Exception) {
-        Log.w("AtAGlanceHeader", "Failed to launch calendar", e)
-    }
+    } catch (_: Exception) {}
 }

@@ -1,5 +1,7 @@
 <resources>
-    <string name="app_name">Niagara Launcher</string>
+    <string name="app_name">Still</string>
+    <string name="app_name_full">Still — Minimal Launcher</string>
+    <string name="app_description">A minimalist Android launcher for intentional phone use.</string>
     <string name="search_hint">Search apps…</string>
     <string name="favorites_title">Favorites</string>
     <string name="all_apps_title">All Apps</string>
@@ -32,13 +34,36 @@
     <string name="ready_to_install">Update downloaded and verified</string>
     <string name="permissions_section_title">System Setup &amp; Permissions</string>
     <string name="default_launcher_title">Default Home App</string>
-    <string name="default_launcher_desc">Set Niagara as your primary home launcher</string>
+    <string name="default_launcher_desc">Set Still as your primary home launcher</string>
     <string name="install_unknown_title">Install Unknown Apps</string>
-    <string name="install_unknown_desc">Allow Niagara to install seamless in-app APK updates</string>
+    <string name="install_unknown_desc">Allow Still to install seamless in-app APK updates</string>
     <string name="notifications_title">Notifications</string>
     <string name="notifications_desc">Receive update download notifications and alerts</string>
     <string name="status_granted">Active</string>
     <string name="btn_grant">Grant</string>
     <string name="btn_set_default">Set Default</string>
     <string name="btn_enable">Enable</string>
+
+    <!-- YouTube Intentional Gate -->
+    <string name="youtube_gate_title">Intentional YouTube</string>
+    <string name="youtube_gate_prompt">What do you want to watch?</string>
+    <string name="youtube_gate_desc">Watch with intention. No algorithmic feeds, no comments, no endless rabbit holes.</string>
+    <string name="youtube_url_hint">Paste YouTube URL or video link…</string>
+    <string name="paste_link">Paste Link</string>
+    <string name="open_video">Open Video</string>
+    <string name="cancel">Cancel</string>
+    <string name="invalid_youtube_url">Please enter a valid YouTube video or shorts URL.</string>
+    <string name="return_to_still">Return to Still</string>
+    <string name="open_external">Open in External App</string>
+
+    <!-- Focus & Launch Restrictions -->
+    <string name="app_launch_rules">Launch Rules &amp; Focus</string>
+    <string name="take_a_deep_breath">Take a deep breath</string>
+    <string name="breathing_guide">Inhale slowly… exhale gently…</string>
+    <string name="intention_question">Why are you opening this app right now?</string>
+    <string name="intention_hint">E.g., Reply to mom, check work schedule…</string>
+    <string name="stay_present">Stay Present (Close)</string>
+    <string name="proceed_with_intention">Open with Intention</string>
+    <string name="focus_blocked_title">App Blocked by Focus Profile</string>
+    <string name="focus_blocked_message">This app is currently restricted to keep your attention calm and undivided.</string>
 </resources>

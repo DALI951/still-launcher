@@ -7,23 +7,21 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
-import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
-import com.niagaraclone.launcher.data.model.ClockStyle
-import com.niagaraclone.launcher.data.model.IconShape
-import com.niagaraclone.launcher.data.model.IconStyle
-import com.niagaraclone.launcher.data.model.IconThemingMode
+import com.niagaraclone.launcher.data.model.AppLaunchRule
+import com.niagaraclone.launcher.data.model.FocusProfile
 import com.niagaraclone.launcher.data.model.LauncherSettings
-import com.niagaraclone.launcher.data.model.ThemePreset
-import com.niagaraclone.launcher.data.model.WallpaperTheme
-import com.niagaraclone.launcher.data.model.WaveVerticalPosition
-import com.niagaraclone.launcher.data.model.WaveVisibility
+import com.niagaraclone.launcher.data.model.StillAccent
+import com.niagaraclone.launcher.data.model.StillThemeMode
+import com.niagaraclone.launcher.data.model.YouTubeHistoryItem
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import org.json.JSONArray
+import org.json.JSONObject
 import java.io.IOException
 
 private val Context.launcherDataStore: DataStore<Preferences> by preferencesDataStore(name = "launcher_prefs")
@@ -35,37 +33,32 @@ class PreferencesRepository(private val context: Context) {
         val HIDDEN_KEYS = stringSetPreferencesKey("hidden_keys")
         val IS_INITIAL_SEEDED = booleanPreferencesKey("is_initial_seeded")
 
-        // Customization & Sizing Settings
-        val SETTING_ICON_SIZE = intPreferencesKey("setting_icon_size")
-        val SETTING_ICON_STYLE = stringPreferencesKey("setting_icon_style")
-        val SETTING_ICON_SHAPE = stringPreferencesKey("setting_icon_shape")
-        val SETTING_ICON_THEMING_MODE = stringPreferencesKey("setting_icon_theming_mode")
-        val SETTING_THEME_PRESET = stringPreferencesKey("setting_theme_preset")
-        val SETTING_EDGE_PADDING = intPreferencesKey("setting_edge_padding")
-        val SETTING_ROW_HEIGHT = intPreferencesKey("setting_row_height")
+        // 1. Appearance
+        val SETTING_STILL_THEME_MODE = stringPreferencesKey("setting_still_theme_mode")
+        val SETTING_STILL_ACCENT = stringPreferencesKey("setting_still_accent")
+        val SETTING_SHOW_APP_ICONS = booleanPreferencesKey("setting_show_app_icons")
         val SETTING_TEXT_SIZE = intPreferencesKey("setting_text_size")
-        val SETTING_FAV_TOP_OFFSET = intPreferencesKey("setting_fav_top_offset")
-        val SETTING_SCRIM_OPACITY = intPreferencesKey("setting_scrim_opacity")
         val SETTING_SHOW_CLOCK = booleanPreferencesKey("setting_show_clock")
         val SETTING_SHOW_DATE = booleanPreferencesKey("setting_show_date")
-        val SETTING_SHOW_BATTERY_ALARM = booleanPreferencesKey("setting_show_battery_alarm")
-        val SETTING_WAVE_LEFT_SIDE = booleanPreferencesKey("setting_wave_left_side")
-
-        // Phase 6 Clock & Wave Ergonomics
-        val SETTING_CLOCK_STYLE = stringPreferencesKey("setting_clock_style")
+        val SETTING_SHOW_BATTERY = booleanPreferencesKey("setting_show_battery")
+        val SETTING_CLOCK_24_HOUR = booleanPreferencesKey("setting_clock_24_hour")
         val SETTING_CLOCK_FONT_SIZE = intPreferencesKey("setting_clock_font_size")
-        val SETTING_WAVE_VISIBILITY = stringPreferencesKey("setting_wave_visibility")
-        val SETTING_WAVE_HEIGHT_PERCENT = intPreferencesKey("setting_wave_height_percent")
-        val SETTING_WAVE_LETTER_SIZE = intPreferencesKey("setting_wave_letter_size")
 
-        // Phase 7 Touch Physics, Wallpapers & Ergonomics
-        val SETTING_WAVE_VERTICAL_POSITION = stringPreferencesKey("setting_wave_vertical_position")
-        val SETTING_WALLPAPER_THEME = stringPreferencesKey("setting_wallpaper_theme")
-        val SETTING_CUSTOM_PHOTO_PATH = stringPreferencesKey("setting_custom_photo_path")
-        val SETTING_CUSTOM_ACCENT_HEX = longPreferencesKey("setting_custom_accent_hex")
-        val SETTING_CUSTOM_ACCENT_LIGHT_HEX = longPreferencesKey("setting_custom_accent_light_hex")
-        val SETTING_SWIPE_UP_TO_SEARCH = booleanPreferencesKey("setting_swipe_up_to_search")
-        val SETTING_LIVE_WALLPAPER_ENABLED = booleanPreferencesKey("setting_live_wallpaper_enabled")
+        // 2. YouTube Gate
+        val SETTING_INTERCEPT_YOUTUBE = booleanPreferencesKey("setting_intercept_youtube")
+        val SETTING_YOUTUBE_HISTORY_ENABLED = booleanPreferencesKey("setting_youtube_history_enabled")
+        val SETTING_YOUTUBE_HISTORY_JSON = stringPreferencesKey("setting_youtube_history_json")
+
+        // 3. Focus & Restrictions
+        val SETTING_ACTIVE_FOCUS_PROFILE = stringPreferencesKey("setting_active_focus_profile")
+        val SETTING_BREATHING_DELAY_SECONDS = intPreferencesKey("setting_breathing_delay_seconds")
+        val SETTING_STUDY_START_HOUR = intPreferencesKey("setting_study_start_hour")
+        val SETTING_STUDY_END_HOUR = intPreferencesKey("setting_study_end_hour")
+        val SETTING_SLEEP_START_HOUR = intPreferencesKey("setting_sleep_start_hour")
+        val SETTING_SLEEP_END_HOUR = intPreferencesKey("setting_sleep_end_hour")
+
+        // Serialized per-app launch rules: "pkg/comp=RULE_NAME:::pkg2/comp2=RULE_NAME"
+        val APP_LAUNCH_RULES = stringPreferencesKey("app_launch_rules")
     }
 
     private val dataStore = context.launcherDataStore
@@ -75,19 +68,11 @@ class PreferencesRepository(private val context: Context) {
      */
     val favoriteKeysFlow: Flow<List<String>> = dataStore.data
         .catch { exception ->
-            if (exception is IOException) {
-                emit(emptyPreferences())
-            } else {
-                throw exception
-            }
+            if (exception is IOException) emit(emptyPreferences()) else throw exception
         }
         .map { preferences ->
             val serialized = preferences[PreferencesKeys.FAVORITE_KEYS_ORDERED] ?: ""
-            if (serialized.isEmpty()) {
-                emptyList()
-            } else {
-                serialized.split(":::").filter { it.isNotEmpty() }
-            }
+            if (serialized.isEmpty()) emptyList() else serialized.split(":::").filter { it.isNotEmpty() }
         }
 
     /**
@@ -95,11 +80,7 @@ class PreferencesRepository(private val context: Context) {
      */
     val hiddenKeysFlow: Flow<Set<String>> = dataStore.data
         .catch { exception ->
-            if (exception is IOException) {
-                emit(emptyPreferences())
-            } else {
-                throw exception
-            }
+            if (exception is IOException) emit(emptyPreferences()) else throw exception
         }
         .map { preferences ->
             preferences[PreferencesKeys.HIDDEN_KEYS] ?: emptySet()
@@ -110,11 +91,7 @@ class PreferencesRepository(private val context: Context) {
      */
     val isInitialSeededFlow: Flow<Boolean> = dataStore.data
         .catch { exception ->
-            if (exception is IOException) {
-                emit(emptyPreferences())
-            } else {
-                throw exception
-            }
+            if (exception is IOException) emit(emptyPreferences()) else throw exception
         }
         .map { preferences ->
             preferences[PreferencesKeys.IS_INITIAL_SEEDED] ?: false
@@ -125,251 +102,246 @@ class PreferencesRepository(private val context: Context) {
      */
     val settingsFlow: Flow<LauncherSettings> = dataStore.data
         .catch { exception ->
-            if (exception is IOException) {
-                emit(emptyPreferences())
-            } else {
-                throw exception
-            }
+            if (exception is IOException) emit(emptyPreferences()) else throw exception
         }
         .map { prefs ->
-            val iconSize = prefs[PreferencesKeys.SETTING_ICON_SIZE] ?: 26
-            val iconStyleName = prefs[PreferencesKeys.SETTING_ICON_STYLE] ?: IconStyle.UNIFIED_THEMED.name
-            val iconStyle = try { IconStyle.valueOf(iconStyleName) } catch (e: Exception) { IconStyle.UNIFIED_THEMED }
-            val iconShapeName = prefs[PreferencesKeys.SETTING_ICON_SHAPE] ?: IconShape.BARE.name
-            val iconShape = try { IconShape.valueOf(iconShapeName) } catch (e: Exception) { IconShape.BARE }
-            val iconThemingModeName = prefs[PreferencesKeys.SETTING_ICON_THEMING_MODE] ?: IconThemingMode.GENTLE_SMART.name
-            val iconThemingMode = try { IconThemingMode.valueOf(iconThemingModeName) } catch (e: Exception) { IconThemingMode.GENTLE_SMART }
-            val themePresetName = prefs[PreferencesKeys.SETTING_THEME_PRESET] ?: ThemePreset.NIAGARA_BLUE.name
-            val themePreset = try { ThemePreset.valueOf(themePresetName) } catch (e: Exception) { ThemePreset.NIAGARA_BLUE }
-            val edgePadding = prefs[PreferencesKeys.SETTING_EDGE_PADDING] ?: 44
-            val rowHeight = prefs[PreferencesKeys.SETTING_ROW_HEIGHT] ?: 46
-            val textSize = prefs[PreferencesKeys.SETTING_TEXT_SIZE] ?: 15
-            val favTopOffset = prefs[PreferencesKeys.SETTING_FAV_TOP_OFFSET] ?: 56
-            val scrimOpacity = prefs[PreferencesKeys.SETTING_SCRIM_OPACITY] ?: 55
+            val themeModeName = prefs[PreferencesKeys.SETTING_STILL_THEME_MODE] ?: StillThemeMode.TRUE_BLACK.name
+            val themeMode = try { StillThemeMode.valueOf(themeModeName) } catch (e: Exception) { StillThemeMode.TRUE_BLACK }
+
+            val accentName = prefs[PreferencesKeys.SETTING_STILL_ACCENT] ?: StillAccent.SLATE.name
+            val accent = try { StillAccent.valueOf(accentName) } catch (e: Exception) { StillAccent.SLATE }
+
+            val showAppIcons = prefs[PreferencesKeys.SETTING_SHOW_APP_ICONS] ?: false
+            val textSize = prefs[PreferencesKeys.SETTING_TEXT_SIZE] ?: 16
             val showClock = prefs[PreferencesKeys.SETTING_SHOW_CLOCK] ?: true
             val showDate = prefs[PreferencesKeys.SETTING_SHOW_DATE] ?: true
-            val showBatteryAlarm = prefs[PreferencesKeys.SETTING_SHOW_BATTERY_ALARM] ?: true
-            val waveLeftSide = prefs[PreferencesKeys.SETTING_WAVE_LEFT_SIDE] ?: false
+            val showBattery = prefs[PreferencesKeys.SETTING_SHOW_BATTERY] ?: true
+            val clock24Hour = prefs[PreferencesKeys.SETTING_CLOCK_24_HOUR] ?: false
+            val clockFontSize = prefs[PreferencesKeys.SETTING_CLOCK_FONT_SIZE] ?: 52
 
-            val clockStyleName = prefs[PreferencesKeys.SETTING_CLOCK_STYLE] ?: ClockStyle.NIAGARA_CLEAN.name
-            val clockStyle = try { ClockStyle.valueOf(clockStyleName) } catch (e: Exception) { ClockStyle.NIAGARA_CLEAN }
-            val clockFontSize = prefs[PreferencesKeys.SETTING_CLOCK_FONT_SIZE] ?: 54
-            val waveVisibilityName = prefs[PreferencesKeys.SETTING_WAVE_VISIBILITY] ?: WaveVisibility.ALWAYS_VISIBLE.name
-            val waveVisibility = try { WaveVisibility.valueOf(waveVisibilityName) } catch (e: Exception) { WaveVisibility.ALWAYS_VISIBLE }
-            val waveHeightPercent = prefs[PreferencesKeys.SETTING_WAVE_HEIGHT_PERCENT] ?: 68
-            val waveLetterSize = prefs[PreferencesKeys.SETTING_WAVE_LETTER_SIZE] ?: 10
+            val interceptYouTube = prefs[PreferencesKeys.SETTING_INTERCEPT_YOUTUBE] ?: true
+            val youtubeHistoryEnabled = prefs[PreferencesKeys.SETTING_YOUTUBE_HISTORY_ENABLED] ?: true
 
-            val waveVertPosName = prefs[PreferencesKeys.SETTING_WAVE_VERTICAL_POSITION] ?: WaveVerticalPosition.CENTER.name
-            val waveVertPos = try { WaveVerticalPosition.valueOf(waveVertPosName) } catch (e: Exception) { WaveVerticalPosition.CENTER }
-            val wallpaperThemeName = prefs[PreferencesKeys.SETTING_WALLPAPER_THEME] ?: WallpaperTheme.BLACK_DESERT.name
-            val wallpaperTheme = try { WallpaperTheme.valueOf(wallpaperThemeName) } catch (e: Exception) { WallpaperTheme.BLACK_DESERT }
-            val customPhotoPath = prefs[PreferencesKeys.SETTING_CUSTOM_PHOTO_PATH]
-            val customAccentHex = prefs[PreferencesKeys.SETTING_CUSTOM_ACCENT_HEX] ?: 0xFFB0B3BAL
-            val customAccentLightHex = prefs[PreferencesKeys.SETTING_CUSTOM_ACCENT_LIGHT_HEX] ?: 0xFFE0E2E6L
-            val swipeUpToSearch = prefs[PreferencesKeys.SETTING_SWIPE_UP_TO_SEARCH] ?: true
-            val liveWallpaperEnabled = prefs[PreferencesKeys.SETTING_LIVE_WALLPAPER_ENABLED] ?: true
+            val focusProfileName = prefs[PreferencesKeys.SETTING_ACTIVE_FOCUS_PROFILE] ?: FocusProfile.DEFAULT.name
+            val focusProfile = try { FocusProfile.valueOf(focusProfileName) } catch (e: Exception) { FocusProfile.DEFAULT }
+            val breathingDelay = prefs[PreferencesKeys.SETTING_BREATHING_DELAY_SECONDS] ?: 5
+
+            val studyStart = prefs[PreferencesKeys.SETTING_STUDY_START_HOUR] ?: 9
+            val studyEnd = prefs[PreferencesKeys.SETTING_STUDY_END_HOUR] ?: 17
+            val sleepStart = prefs[PreferencesKeys.SETTING_SLEEP_START_HOUR] ?: 22
+            val sleepEnd = prefs[PreferencesKeys.SETTING_SLEEP_END_HOUR] ?: 7
 
             LauncherSettings(
-                iconSizeDp = iconSize,
-                iconStyle = iconStyle,
-                iconShape = iconShape,
-                iconThemingMode = iconThemingMode,
-                themePreset = themePreset,
-                edgePaddingDp = edgePadding,
-                rowHeightDp = rowHeight,
+                themeMode = themeMode,
+                accent = accent,
+                showAppIcons = showAppIcons,
                 textSizeSp = textSize,
-                favoritesTopOffsetDp = favTopOffset,
-                scrimOpacityPercent = scrimOpacity,
                 showClock = showClock,
                 showDate = showDate,
-                showBatteryAndAlarm = showBatteryAlarm,
-                waveOnLeftSide = waveLeftSide,
-                clockStyle = clockStyle,
+                showBattery = showBattery,
+                clock24Hour = clock24Hour,
                 clockFontSizeSp = clockFontSize,
-                waveVisibility = waveVisibility,
-                waveHeightPercent = waveHeightPercent,
-                waveLetterSizeSp = waveLetterSize,
-                waveVerticalPosition = waveVertPos,
-                wallpaperTheme = wallpaperTheme,
-                customPhotoPath = customPhotoPath,
-                customAccentHex = customAccentHex,
-                customAccentLightHex = customAccentLightHex,
-                swipeUpToSearch = swipeUpToSearch,
-                liveWallpaperEnabled = liveWallpaperEnabled
+                interceptYouTube = interceptYouTube,
+                youtubeHistoryEnabled = youtubeHistoryEnabled,
+                activeFocusProfile = focusProfile,
+                breathingDelaySeconds = breathingDelay,
+                studyStartHour = studyStart,
+                studyEndHour = studyEnd,
+                sleepStartHour = sleepStart,
+                sleepEndHour = sleepEnd
             )
         }
 
     /**
-     * Updates launcher settings via a transform lambda.
+     * Flow of per-application launch rules: Map<AppKey, AppLaunchRule>
      */
-    suspend fun updateSettings(transform: (LauncherSettings) -> LauncherSettings) {
-        val current = settingsFlow.first()
-        val updated = transform(current)
-
-        dataStore.edit { prefs ->
-            prefs[PreferencesKeys.SETTING_ICON_SIZE] = updated.iconSizeDp
-            prefs[PreferencesKeys.SETTING_ICON_STYLE] = updated.iconStyle.name
-            prefs[PreferencesKeys.SETTING_ICON_SHAPE] = updated.iconShape.name
-            prefs[PreferencesKeys.SETTING_ICON_THEMING_MODE] = updated.iconThemingMode.name
-            prefs[PreferencesKeys.SETTING_THEME_PRESET] = updated.themePreset.name
-            prefs[PreferencesKeys.SETTING_EDGE_PADDING] = updated.edgePaddingDp
-            prefs[PreferencesKeys.SETTING_ROW_HEIGHT] = updated.rowHeightDp
-            prefs[PreferencesKeys.SETTING_TEXT_SIZE] = updated.textSizeSp
-            prefs[PreferencesKeys.SETTING_FAV_TOP_OFFSET] = updated.favoritesTopOffsetDp
-            prefs[PreferencesKeys.SETTING_SCRIM_OPACITY] = updated.scrimOpacityPercent
-            prefs[PreferencesKeys.SETTING_SHOW_CLOCK] = updated.showClock
-            prefs[PreferencesKeys.SETTING_SHOW_DATE] = updated.showDate
-            prefs[PreferencesKeys.SETTING_SHOW_BATTERY_ALARM] = updated.showBatteryAndAlarm
-            prefs[PreferencesKeys.SETTING_WAVE_LEFT_SIDE] = updated.waveOnLeftSide
-            prefs[PreferencesKeys.SETTING_CLOCK_STYLE] = updated.clockStyle.name
-            prefs[PreferencesKeys.SETTING_CLOCK_FONT_SIZE] = updated.clockFontSizeSp
-            prefs[PreferencesKeys.SETTING_WAVE_VISIBILITY] = updated.waveVisibility.name
-            prefs[PreferencesKeys.SETTING_WAVE_HEIGHT_PERCENT] = updated.waveHeightPercent
-            prefs[PreferencesKeys.SETTING_WAVE_LETTER_SIZE] = updated.waveLetterSizeSp
-            prefs[PreferencesKeys.SETTING_WAVE_VERTICAL_POSITION] = updated.waveVerticalPosition.name
-            prefs[PreferencesKeys.SETTING_WALLPAPER_THEME] = updated.wallpaperTheme.name
-            if (updated.customPhotoPath != null) {
-                prefs[PreferencesKeys.SETTING_CUSTOM_PHOTO_PATH] = updated.customPhotoPath
+    val appLaunchRulesFlow: Flow<Map<String, AppLaunchRule>> = dataStore.data
+        .catch { exception ->
+            if (exception is IOException) emit(emptyPreferences()) else throw exception
+        }
+        .map { prefs ->
+            val raw = prefs[PreferencesKeys.APP_LAUNCH_RULES] ?: ""
+            if (raw.isEmpty()) {
+                emptyMap()
             } else {
-                prefs.remove(PreferencesKeys.SETTING_CUSTOM_PHOTO_PATH)
+                val map = mutableMapOf<String, AppLaunchRule>()
+                raw.split(":::").forEach { entry ->
+                    val parts = entry.split("=")
+                    if (parts.size == 2) {
+                        try {
+                            map[parts[0]] = AppLaunchRule.valueOf(parts[1])
+                        } catch (_: Exception) {}
+                    }
+                }
+                map
             }
-            prefs[PreferencesKeys.SETTING_CUSTOM_ACCENT_HEX] = updated.customAccentHex
-            prefs[PreferencesKeys.SETTING_CUSTOM_ACCENT_LIGHT_HEX] = updated.customAccentLightHex
-            prefs[PreferencesKeys.SETTING_SWIPE_UP_TO_SEARCH] = updated.swipeUpToSearch
-            prefs[PreferencesKeys.SETTING_LIVE_WALLPAPER_ENABLED] = updated.liveWallpaperEnabled
         }
-    }
 
     /**
-     * Resets all visual and ergonomic settings to default Niagara layout.
+     * Flow of YouTube playback history (strictly local).
      */
-    suspend fun resetSettingsToDefault() {
-        dataStore.edit { prefs ->
-            prefs.remove(PreferencesKeys.SETTING_ICON_SIZE)
-            prefs.remove(PreferencesKeys.SETTING_ICON_STYLE)
-            prefs.remove(PreferencesKeys.SETTING_ICON_SHAPE)
-            prefs.remove(PreferencesKeys.SETTING_ICON_THEMING_MODE)
-            prefs.remove(PreferencesKeys.SETTING_THEME_PRESET)
-            prefs.remove(PreferencesKeys.SETTING_EDGE_PADDING)
-            prefs.remove(PreferencesKeys.SETTING_ROW_HEIGHT)
-            prefs.remove(PreferencesKeys.SETTING_TEXT_SIZE)
-            prefs.remove(PreferencesKeys.SETTING_FAV_TOP_OFFSET)
-            prefs.remove(PreferencesKeys.SETTING_SCRIM_OPACITY)
-            prefs.remove(PreferencesKeys.SETTING_SHOW_CLOCK)
-            prefs.remove(PreferencesKeys.SETTING_SHOW_DATE)
-            prefs.remove(PreferencesKeys.SETTING_SHOW_BATTERY_ALARM)
-            prefs.remove(PreferencesKeys.SETTING_WAVE_LEFT_SIDE)
-            prefs.remove(PreferencesKeys.SETTING_CLOCK_STYLE)
-            prefs.remove(PreferencesKeys.SETTING_CLOCK_FONT_SIZE)
-            prefs.remove(PreferencesKeys.SETTING_WAVE_VISIBILITY)
-            prefs.remove(PreferencesKeys.SETTING_WAVE_HEIGHT_PERCENT)
-            prefs.remove(PreferencesKeys.SETTING_WAVE_LETTER_SIZE)
-            prefs.remove(PreferencesKeys.SETTING_WAVE_VERTICAL_POSITION)
-            prefs.remove(PreferencesKeys.SETTING_WALLPAPER_THEME)
-            prefs.remove(PreferencesKeys.SETTING_CUSTOM_PHOTO_PATH)
-            prefs.remove(PreferencesKeys.SETTING_CUSTOM_ACCENT_HEX)
-            prefs.remove(PreferencesKeys.SETTING_CUSTOM_ACCENT_LIGHT_HEX)
-            prefs.remove(PreferencesKeys.SETTING_SWIPE_UP_TO_SEARCH)
-            prefs.remove(PreferencesKeys.SETTING_LIVE_WALLPAPER_ENABLED)
+    val youtubeHistoryFlow: Flow<List<YouTubeHistoryItem>> = dataStore.data
+        .catch { exception ->
+            if (exception is IOException) emit(emptyPreferences()) else throw exception
         }
-    }
-
-    /**
-     * Sets or overrides the complete list of favorites in exact order.
-     */
-    suspend fun setFavorites(keys: List<String>) {
-        val serialized = keys.filter { it.isNotEmpty() }.joinToString(":::")
-        dataStore.edit { preferences ->
-            preferences[PreferencesKeys.FAVORITE_KEYS_ORDERED] = serialized
-        }
-    }
-
-    /**
-     * Adds an app key to the favorites list.
-     */
-    suspend fun addFavorite(key: String) {
-        dataStore.edit { preferences ->
-            val serialized = preferences[PreferencesKeys.FAVORITE_KEYS_ORDERED] ?: ""
-            val list = if (serialized.isEmpty()) {
-                mutableListOf()
+        .map { prefs ->
+            val jsonStr = prefs[PreferencesKeys.SETTING_YOUTUBE_HISTORY_JSON] ?: ""
+            if (jsonStr.isEmpty()) {
+                emptyList()
             } else {
-                serialized.split(":::").filter { it.isNotEmpty() }.toMutableList()
-            }
-            if (!list.contains(key)) {
-                list.add(key)
-                preferences[PreferencesKeys.FAVORITE_KEYS_ORDERED] = list.joinToString(":::")
-            }
-        }
-    }
-
-    /**
-     * Removes an app key from favorites.
-     */
-    suspend fun removeFavorite(key: String) {
-        dataStore.edit { preferences ->
-            val serialized = preferences[PreferencesKeys.FAVORITE_KEYS_ORDERED] ?: ""
-            val list = serialized.split(":::").filter { it.isNotEmpty() }.toMutableList()
-            if (list.remove(key)) {
-                preferences[PreferencesKeys.FAVORITE_KEYS_ORDERED] = list.joinToString(":::")
-            }
-        }
-    }
-
-    /**
-     * Reorders a favorite item up (-1) or down (+1).
-     */
-    suspend fun moveFavorite(key: String, delta: Int) {
-        dataStore.edit { preferences ->
-            val serialized = preferences[PreferencesKeys.FAVORITE_KEYS_ORDERED] ?: ""
-            val list = serialized.split(":::").filter { it.isNotEmpty() }.toMutableList()
-            val currentIndex = list.indexOf(key)
-            if (currentIndex != -1) {
-                val newIndex = (currentIndex + delta).coerceIn(0, list.lastIndex)
-                if (newIndex != currentIndex) {
-                    list.removeAt(currentIndex)
-                    list.add(newIndex, key)
-                    preferences[PreferencesKeys.FAVORITE_KEYS_ORDERED] = list.joinToString(":::")
+                try {
+                    val array = JSONArray(jsonStr)
+                    val list = mutableListOf<YouTubeHistoryItem>()
+                    for (i in 0 until array.length()) {
+                        list.add(YouTubeHistoryItem.fromJson(array.getJSONObject(i)))
+                    }
+                    list
+                } catch (e: Exception) {
+                    emptyList()
                 }
             }
         }
+
+    suspend fun updateSettings(transform: (LauncherSettings) -> LauncherSettings) {
+        val current = settingsFlow.first()
+        val updated = transform(current)
+        dataStore.edit { prefs ->
+            prefs[PreferencesKeys.SETTING_STILL_THEME_MODE] = updated.themeMode.name
+            prefs[PreferencesKeys.SETTING_STILL_ACCENT] = updated.accent.name
+            prefs[PreferencesKeys.SETTING_SHOW_APP_ICONS] = updated.showAppIcons
+            prefs[PreferencesKeys.SETTING_TEXT_SIZE] = updated.textSizeSp
+            prefs[PreferencesKeys.SETTING_SHOW_CLOCK] = updated.showClock
+            prefs[PreferencesKeys.SETTING_SHOW_DATE] = updated.showDate
+            prefs[PreferencesKeys.SETTING_SHOW_BATTERY] = updated.showBattery
+            prefs[PreferencesKeys.SETTING_CLOCK_24_HOUR] = updated.clock24Hour
+            prefs[PreferencesKeys.SETTING_CLOCK_FONT_SIZE] = updated.clockFontSizeSp
+            prefs[PreferencesKeys.SETTING_INTERCEPT_YOUTUBE] = updated.interceptYouTube
+            prefs[PreferencesKeys.SETTING_YOUTUBE_HISTORY_ENABLED] = updated.youtubeHistoryEnabled
+            prefs[PreferencesKeys.SETTING_ACTIVE_FOCUS_PROFILE] = updated.activeFocusProfile.name
+            prefs[PreferencesKeys.SETTING_BREATHING_DELAY_SECONDS] = updated.breathingDelaySeconds
+            prefs[PreferencesKeys.SETTING_STUDY_START_HOUR] = updated.studyStartHour
+            prefs[PreferencesKeys.SETTING_STUDY_END_HOUR] = updated.studyEndHour
+            prefs[PreferencesKeys.SETTING_SLEEP_START_HOUR] = updated.sleepStartHour
+            prefs[PreferencesKeys.SETTING_SLEEP_END_HOUR] = updated.sleepEndHour
+        }
     }
 
-    /**
-     * Marks an app as hidden. Also removes it from favorites if pinned.
-     */
-    suspend fun hideApp(key: String) {
-        dataStore.edit { preferences ->
-            val currentHidden = preferences[PreferencesKeys.HIDDEN_KEYS]?.toMutableSet() ?: mutableSetOf()
-            currentHidden.add(key)
-            preferences[PreferencesKeys.HIDDEN_KEYS] = currentHidden
+    suspend fun setAppLaunchRule(key: String, rule: AppLaunchRule) {
+        dataStore.edit { prefs ->
+            val raw = prefs[PreferencesKeys.APP_LAUNCH_RULES] ?: ""
+            val map = mutableMapOf<String, String>()
+            if (raw.isNotEmpty()) {
+                raw.split(":::").forEach { entry ->
+                    val parts = entry.split("=")
+                    if (parts.size == 2) map[parts[0]] = parts[1]
+                }
+            }
+            if (rule == AppLaunchRule.NORMAL) {
+                map.remove(key)
+            } else {
+                map[key] = rule.name
+            }
+            val serialized = map.entries.joinToString(":::") { "${it.key}=${it.value}" }
+            prefs[PreferencesKeys.APP_LAUNCH_RULES] = serialized
+        }
+    }
 
-            // Remove from favorites if present
-            val serialized = preferences[PreferencesKeys.FAVORITE_KEYS_ORDERED] ?: ""
-            val list = serialized.split(":::").filter { it.isNotEmpty() }.toMutableList()
-            if (list.remove(key)) {
-                preferences[PreferencesKeys.FAVORITE_KEYS_ORDERED] = list.joinToString(":::")
+    suspend fun addYouTubeHistoryItem(item: YouTubeHistoryItem) {
+        dataStore.edit { prefs ->
+            val isEnabled = prefs[PreferencesKeys.SETTING_YOUTUBE_HISTORY_ENABLED] ?: true
+            if (!isEnabled) return@edit
+
+            val jsonStr = prefs[PreferencesKeys.SETTING_YOUTUBE_HISTORY_JSON] ?: ""
+            val list = mutableListOf<YouTubeHistoryItem>()
+            if (jsonStr.isNotEmpty()) {
+                try {
+                    val array = JSONArray(jsonStr)
+                    for (i in 0 until array.length()) {
+                        list.add(YouTubeHistoryItem.fromJson(array.getJSONObject(i)))
+                    }
+                } catch (_: Exception) {}
+            }
+            // Remove existing with same id to deduplicate and move to top
+            list.removeAll { it.id == item.id }
+            list.add(0, item)
+            // Limit history to 30 items
+            val trimmed = list.take(30)
+            val jsonArray = JSONArray()
+            trimmed.forEach { jsonArray.put(it.toJson()) }
+            prefs[PreferencesKeys.SETTING_YOUTUBE_HISTORY_JSON] = jsonArray.toString()
+        }
+    }
+
+    suspend fun removeYouTubeHistoryItem(id: String) {
+        dataStore.edit { prefs ->
+            val jsonStr = prefs[PreferencesKeys.SETTING_YOUTUBE_HISTORY_JSON] ?: ""
+            if (jsonStr.isNotEmpty()) {
+                try {
+                    val array = JSONArray(jsonStr)
+                    val list = mutableListOf<YouTubeHistoryItem>()
+                    for (i in 0 until array.length()) {
+                        val item = YouTubeHistoryItem.fromJson(array.getJSONObject(i))
+                        if (item.id != id) list.add(item)
+                    }
+                    val jsonArray = JSONArray()
+                    list.forEach { jsonArray.put(it.toJson()) }
+                    prefs[PreferencesKeys.SETTING_YOUTUBE_HISTORY_JSON] = jsonArray.toString()
+                } catch (_: Exception) {}
             }
         }
     }
 
-    /**
-     * Unhides an app.
-     */
-    suspend fun unhideApp(key: String) {
+    suspend fun clearYouTubeHistory() {
+        dataStore.edit { prefs ->
+            prefs[PreferencesKeys.SETTING_YOUTUBE_HISTORY_JSON] = ""
+        }
+    }
+
+    suspend fun saveFavorites(keys: List<String>) {
         dataStore.edit { preferences ->
-            val currentHidden = preferences[PreferencesKeys.HIDDEN_KEYS]?.toMutableSet() ?: mutableSetOf()
-            if (currentHidden.remove(key)) {
-                preferences[PreferencesKeys.HIDDEN_KEYS] = currentHidden
+            preferences[PreferencesKeys.FAVORITE_KEYS_ORDERED] = keys.joinToString(":::")
+        }
+    }
+
+    suspend fun addFavorite(key: String) {
+        val current = favoriteKeysFlow.first()
+        if (!current.contains(key)) {
+            val updated = current + key
+            saveFavorites(updated)
+        }
+    }
+
+    suspend fun removeFavorite(key: String) {
+        val current = favoriteKeysFlow.first()
+        if (current.contains(key)) {
+            val updated = current.filter { it != key }
+            saveFavorites(updated)
+        }
+    }
+
+    suspend fun reorderFavorite(fromIndex: Int, toIndex: Int) {
+        val current = favoriteKeysFlow.first().toMutableList()
+        if (fromIndex in current.indices && toIndex in current.indices && fromIndex != toIndex) {
+            val item = current.removeAt(fromIndex)
+            current.add(toIndex, item)
+            saveFavorites(current)
+        }
+    }
+
+    suspend fun toggleHidden(key: String) {
+        dataStore.edit { preferences ->
+            val current = preferences[PreferencesKeys.HIDDEN_KEYS] ?: emptySet()
+            preferences[PreferencesKeys.HIDDEN_KEYS] = if (current.contains(key)) {
+                current - key
+            } else {
+                current + key
             }
         }
     }
 
-    /**
-     * Marks that default favorites have been seeded.
-     */
-    suspend fun markInitialSeeded() {
+    suspend fun setInitialSeeded(seeded: Boolean) {
         dataStore.edit { preferences ->
-            preferences[PreferencesKeys.IS_INITIAL_SEEDED] = true
+            preferences[PreferencesKeys.IS_INITIAL_SEEDED] = seeded
         }
     }
 }

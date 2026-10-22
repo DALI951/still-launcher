@@ -10,4 +10,6 @@ data class SystemStatus(
     val isCharging: Boolean = false,
     val nextAlarm: String? = null,
     val weatherSummary: String? = null
-)
+) {
+    val batteryPercent: Int get() = batteryLevel
+}

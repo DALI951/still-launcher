@@ -22,7 +22,7 @@ android {
             useSupportLibrary = true
         }
 
-        buildConfigField("String", "GITHUB_REPO", "\"DALI951/niagara-launcher-clone\"")
+        buildConfigField("String", "GITHUB_REPO", "\"DALI951/still-launcher\"")
     }
 
     signingConfigs {

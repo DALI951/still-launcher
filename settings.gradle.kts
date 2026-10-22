@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "NiagaraLauncherClone"
+rootProject.name = "still-launcher"
 include(":app")

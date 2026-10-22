@@ -29,6 +29,14 @@ private val NiagaraDarkColorScheme = darkColorScheme(
 )
 
 @Composable
+fun StillLauncherTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    content: @Composable () -> Unit
+) {
+    NiagaraLauncherTheme(darkTheme = darkTheme, content = content)
+}
+
+@Composable
 fun NiagaraLauncherTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
