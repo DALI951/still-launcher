@@ -15,10 +15,13 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.niagaraclone.launcher.data.model.LauncherSettings
 import com.niagaraclone.launcher.data.model.ThemePreset
+import com.niagaraclone.launcher.data.model.WaveVerticalPosition
 import com.niagaraclone.launcher.data.model.WaveVisibility
 import com.niagaraclone.launcher.ui.theme.TextMuted
 import com.niagaraclone.launcher.ui.theme.TextPrimary
@@ -54,12 +58,14 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /**
- * Implements Niagara Launcher's signature wave alphabet scrollbar.
+ * Authentic Niagara Alphabet Wave Scroller with Touch Physics Overhaul.
  *
- * Uses a raised-cosine wave distortion formula:
- * Δx_i = -A_max * ((1 + cos(π * d_i)) / 2) * waveProgress
- * Δy_i = sign(y_i - y_touch) * S_max * sin(π * (1 - d_i)) * waveProgress
- * Scale_i = 1.0 + 0.55 * (1 - d_i)^2 * waveProgress
+ * Provides a responsive 64.dp edge touch target with raised-cosine wave distortion:
+ * - Δx_i = -A_max * ((1 + cos(π * d_i)) / 2) * waveProgress
+ * - Δy_i = sign(y_i - y_touch) * S_max * sin(π * (1 - d_i)) * waveProgress
+ * - Scale_i = 1.0 + 0.55 * (1 - d_i)^2 * waveProgress
+ *
+ * Includes '⚙' at bottom to quickly access launcher settings and full vertical alignment support.
  */
 @Composable
 fun NiagaraWaveScroller(
@@ -70,13 +76,19 @@ fun NiagaraWaveScroller(
     modifier: Modifier = Modifier,
     settings: LauncherSettings = LauncherSettings(),
     themePreset: ThemePreset = settings.themePreset,
-    isLeftSide: Boolean = settings.waveOnLeftSide
+    isLeftSide: Boolean = settings.waveOnLeftSide,
+    onOpenSettings: () -> Unit = {}
 ) {
     val view = LocalView.current
     val density = LocalDensity.current
 
-    val themeAccent = Color(themePreset.accentHex)
-    val themeAccentLight = Color(themePreset.accentLightHex)
+    val themeAccent = Color(settings.activeAccentHex)
+    val themeAccentLight = Color(settings.activeAccentLightHex)
+
+    // Ensure '⚙' is appended at the bottom of the symbols list
+    val effectiveSymbols = remember(symbols) {
+        if (symbols.contains('⚙')) symbols else symbols + listOf('⚙')
+    }
 
     var isTouching by remember { mutableStateOf(false) }
     var touchY by remember { mutableFloatStateOf(0f) }
@@ -107,30 +119,44 @@ fun NiagaraWaveScroller(
     val maxSpreadPx = with(density) { 14.dp.toPx() }
     val waveRadiusPx = with(density) { 140.dp.toPx() }
 
-    val milestoneLetters = remember { setOf('★', '#', 'A', 'E', 'I', 'M', 'Q', 'U', 'Z') }
+    val milestoneLetters = remember { setOf('★', '#', 'A', 'E', 'I', 'M', 'Q', 'U', 'Z', '⚙') }
 
     BoxWithConstraints(
         modifier = modifier
-            .fillMaxHeight(settings.waveHeightPercent / 100f)
-            .wrapContentHeight(Alignment.CenterVertically)
-            .width(52.dp)
-            .alpha(visibilityAlpha)
-            .pointerInput(symbols) {
+            .fillMaxHeight()
+            .width(64.dp)
+            .pointerInput(effectiveSymbols, settings.waveHeightPercent, settings.waveVerticalPosition) {
+                val totalHeight = size.height.toFloat()
+                val waveFraction = (settings.waveHeightPercent / 100f).coerceIn(0.4f, 0.95f)
+                val waveHeight = totalHeight * waveFraction
+                val waveTopOffset = when (settings.waveVerticalPosition) {
+                    WaveVerticalPosition.TOP -> 0f
+                    WaveVerticalPosition.BOTTOM -> totalHeight - waveHeight
+                    WaveVerticalPosition.CENTER -> (totalHeight - waveHeight) / 2f
+                }
+
+                val itemHeight = waveHeight / effectiveSymbols.size.coerceAtLeast(1)
+
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     isTouching = true
-                    touchY = down.position.y
+                    val clampedY = (down.position.y - waveTopOffset).coerceIn(0f, waveHeight)
+                    touchY = clampedY
                     onScrubbingStateChanged(true)
 
-                    val itemHeight = size.height.toFloat() / symbols.size.coerceAtLeast(1)
-                    val initialIndex = (touchY / itemHeight)
+                    val initialIndex = (clampedY / itemHeight)
                         .toInt()
-                        .coerceIn(0, symbols.lastIndex)
+                        .coerceIn(0, effectiveSymbols.lastIndex)
 
                     if (initialIndex != activeIndex) {
                         activeIndex = initialIndex
                         view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                        onSymbolSelected(symbols[initialIndex])
+                        val sym = effectiveSymbols[initialIndex]
+                        if (sym == '⚙') {
+                            onOpenSettings()
+                        } else {
+                            onSymbolSelected(sym)
+                        }
                     }
 
                     while (true) {
@@ -140,17 +166,28 @@ fun NiagaraWaveScroller(
                             break
                         }
 
-                        touchY = change.position.y
-                        val newIndex = (touchY / itemHeight)
+                        val moveY = (change.position.y - waveTopOffset).coerceIn(0f, waveHeight)
+                        touchY = moveY
+                        val newIndex = (moveY / itemHeight)
                             .toInt()
-                            .coerceIn(0, symbols.lastIndex)
+                            .coerceIn(0, effectiveSymbols.lastIndex)
 
                         if (newIndex != activeIndex) {
                             activeIndex = newIndex
                             view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                            onSymbolSelected(symbols[newIndex])
+                            val sym = effectiveSymbols[newIndex]
+                            if (sym == '⚙') {
+                                onOpenSettings()
+                            } else {
+                                onSymbolSelected(sym)
+                            }
                         }
                         change.consume()
+                    }
+
+                    // Release handling
+                    if (activeIndex in effectiveSymbols.indices && effectiveSymbols[activeIndex] == '⚙') {
+                        onOpenSettings()
                     }
 
                     isTouching = false
@@ -159,25 +196,33 @@ fun NiagaraWaveScroller(
                 }
             }
     ) {
-        val totalHeight = constraints.maxHeight.toFloat()
-        val numSymbols = symbols.size.coerceAtLeast(1)
-        val symbolSpacing = totalHeight / numSymbols
+        val totalAvailableHeight = constraints.maxHeight.toFloat()
+        val waveFraction = (settings.waveHeightPercent / 100f).coerceIn(0.4f, 0.95f)
+        val waveRenderHeight = totalAvailableHeight * waveFraction
+        val waveTopOffset = when (settings.waveVerticalPosition) {
+            WaveVerticalPosition.TOP -> 0f
+            WaveVerticalPosition.BOTTOM -> totalAvailableHeight - waveRenderHeight
+            WaveVerticalPosition.CENTER -> (totalAvailableHeight - waveRenderHeight) / 2f
+        }
 
-        // Floating letter preview bubble appearing to the side of user's thumb
+        val numSymbols = effectiveSymbols.size.coerceAtLeast(1)
+        val symbolSpacing = waveRenderHeight / numSymbols
+
+        // Floating letter preview bubble appearing next to thumb
         AnimatedVisibility(
-            visible = isTouching && activeIndex in symbols.indices,
+            visible = isTouching && activeIndex in effectiveSymbols.indices,
             enter = scaleIn() + fadeIn(),
             exit = scaleOut() + fadeOut(),
             modifier = Modifier.align(if (isLeftSide) Alignment.TopStart else Alignment.TopEnd)
         ) {
-            if (activeIndex in symbols.indices) {
-                val bubbleOffsetY = (touchY - with(density) { 32.dp.toPx() })
-                    .coerceIn(0f, totalHeight - with(density) { 64.dp.toPx() })
+            if (activeIndex in effectiveSymbols.indices) {
+                val bubbleOffsetY = (waveTopOffset + touchY - with(density) { 32.dp.toPx() })
+                    .coerceIn(0f, totalAvailableHeight - with(density) { 64.dp.toPx() })
 
                 val bubbleOffsetX = if (isLeftSide) {
-                    with(density) { 96.dp.roundToPx() }
+                    with(density) { 88.dp.roundToPx() }
                 } else {
-                    -with(density) { 96.dp.roundToPx() }
+                    -with(density) { 88.dp.roundToPx() }
                 }
 
                 Box(
@@ -189,9 +234,9 @@ fun NiagaraWaveScroller(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = symbols[activeIndex].toString(),
+                        text = effectiveSymbols[activeIndex].toString(),
                         color = Color.White,
-                        fontSize = 28.sp,
+                        fontSize = if (effectiveSymbols[activeIndex] == '⚙') 22.sp else 28.sp,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center
                     )
@@ -199,79 +244,91 @@ fun NiagaraWaveScroller(
             }
         }
 
-        // Render each symbol in the vertical wave
-        symbols.forEachIndexed { i, symbol ->
-            val symbolCenterY = (i + 0.5f) * symbolSpacing
-            val dist = abs(symbolCenterY - touchY)
-            val d_i = (dist / waveRadiusPx).coerceAtMost(1f)
+        // Inner Wave Container rendered at waveTopOffset with waveRenderHeight
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(with(density) { waveRenderHeight.toDp() })
+                .offset { IntOffset(0, waveTopOffset.roundToInt()) }
+                .alpha(visibilityAlpha)
+        ) {
+            effectiveSymbols.forEachIndexed { i, symbol ->
+                val symbolCenterY = (i + 0.5f) * symbolSpacing
+                val dist = abs(symbolCenterY - touchY)
+                val d_i = (dist / waveRadiusPx).coerceAtMost(1f)
 
-            // Mathematical raised-cosine distortion
-            val cosFactor = ((1.0 + cos(PI * d_i)) / 2.0).toFloat()
-            val rawDeltaX = maxAmplitudePx * cosFactor * waveProgress
-            val deltaX = if (isLeftSide) rawDeltaX else -rawDeltaX
+                // Mathematical raised-cosine distortion
+                val cosFactor = ((1.0 + cos(PI * d_i)) / 2.0).toFloat()
+                val rawDeltaX = maxAmplitudePx * cosFactor * waveProgress
+                val deltaX = if (isLeftSide) rawDeltaX else -rawDeltaX
 
-            val sign = if (symbolCenterY >= touchY) 1f else -1f
-            val deltaY = sign * maxSpreadPx * sin(PI * (1f - d_i)).toFloat() * waveProgress
+                val sign = if (symbolCenterY >= touchY) 1f else -1f
+                val deltaY = sign * maxSpreadPx * sin(PI * (1f - d_i)).toFloat() * waveProgress
 
-            val scale = 1.0f + 0.55f * (1f - d_i) * (1f - d_i) * waveProgress
-            val isCurrent = i == activeIndex
-            val hasApps = symbol == '★' || symbol in availableSymbols
+                val scale = 1.0f + 0.55f * (1f - d_i) * (1f - d_i) * waveProgress
+                val isCurrent = i == activeIndex
+                val hasApps = symbol == '★' || symbol == '⚙' || symbol in availableSymbols
 
-            val textColor = when {
-                isCurrent -> Color.White
-                waveProgress > 0.1f && d_i < 0.6f -> if (hasApps) themeAccentLight else TextPrimary
-                hasApps -> TextPrimary
-                else -> TextMuted
-            }
+                val textColor = when {
+                    isCurrent -> Color.White
+                    waveProgress > 0.1f && d_i < 0.6f -> if (hasApps) themeAccentLight else TextPrimary
+                    hasApps -> TextPrimary
+                    else -> TextMuted
+                }
 
-            val baseOffsetY = i * symbolSpacing
-            val finalOffsetY = baseOffsetY + deltaY
+                val baseOffsetY = i * symbolSpacing
+                val finalOffsetY = baseOffsetY + deltaY
 
-            val isMilestone = symbol in milestoneLetters
-            val isDotsMode = settings.waveVisibility == WaveVisibility.SUBTLE_DOTS && !isTouching
+                val isMilestone = symbol in milestoneLetters
+                val isDotsMode = settings.waveVisibility == WaveVisibility.SUBTLE_DOTS && !isTouching
 
-            Box(
-                modifier = Modifier
-                    .offset {
-                        IntOffset(
-                            x = deltaX.roundToInt(),
-                            y = finalOffsetY.roundToInt()
+                Box(
+                    modifier = Modifier
+                        .offset {
+                            IntOffset(
+                                x = deltaX.roundToInt(),
+                                y = finalOffsetY.roundToInt()
+                            )
+                        }
+                        .size(width = 44.dp, height = with(density) { symbolSpacing.toDp() })
+                        .align(if (isLeftSide) Alignment.TopStart else Alignment.TopEnd)
+                        .graphicsLayer {
+                            scaleX = scale
+                            scaleY = scale
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isDotsMode) {
+                        if (isMilestone) {
+                            Box(
+                                modifier = Modifier
+                                    .size(3.5.dp)
+                                    .background(
+                                        if (hasApps) themeAccentLight else TextMuted.copy(alpha = 0.4f),
+                                        CircleShape
+                                    )
+                            )
+                        }
+                    } else {
+                        Text(
+                            text = symbol.toString(),
+                            color = textColor,
+                            fontSize = when (symbol) {
+                                '★' -> (settings.waveLetterSizeSp + 1).sp
+                                '⚙' -> (settings.waveLetterSizeSp).sp
+                                else -> settings.waveLetterSizeSp.sp
+                            },
+                            fontWeight = if (isCurrent || hasApps) FontWeight.Bold else FontWeight.Normal,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.alpha(
+                                when {
+                                    isCurrent -> 1f
+                                    hasApps -> (0.8f + 0.2f * (1f - d_i))
+                                    else -> 0.35f
+                                }
+                            )
                         )
                     }
-                    .size(width = 36.dp, height = with(density) { symbolSpacing.toDp() })
-                    .align(if (isLeftSide) Alignment.TopStart else Alignment.TopEnd)
-                    .graphicsLayer {
-                        scaleX = scale
-                        scaleY = scale
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                if (isDotsMode) {
-                    if (isMilestone) {
-                        Box(
-                            modifier = Modifier
-                                .size(3.5.dp)
-                                .background(
-                                    if (hasApps) themeAccentLight else TextMuted.copy(alpha = 0.4f),
-                                    CircleShape
-                                )
-                        )
-                    }
-                } else {
-                    Text(
-                        text = symbol.toString(),
-                        color = textColor,
-                        fontSize = if (symbol == '★') (settings.waveLetterSizeSp + 1).sp else settings.waveLetterSizeSp.sp,
-                        fontWeight = if (isCurrent || hasApps) FontWeight.Bold else FontWeight.Normal,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.alpha(
-                            when {
-                                isCurrent -> 1f
-                                hasApps -> (0.8f + 0.2f * (1f - d_i))
-                                else -> 0.35f
-                            }
-                        )
-                    )
                 }
             }
         }

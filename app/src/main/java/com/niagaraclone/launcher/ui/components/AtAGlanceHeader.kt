@@ -47,7 +47,7 @@ fun AtAGlanceHeader(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val themeAccentLight = Color(settings.themePreset.accentLightHex)
+    val themeAccentLight = Color(settings.activeAccentLightHex)
 
     // Typography resolution for the selected ClockStyle
     val (fontFamily, fontWeight, letterSpacing) = when (settings.clockStyle) {
@@ -57,6 +57,8 @@ fun AtAGlanceHeader(
         ClockStyle.SERIF_ELEGANT -> Triple(FontFamily.Serif, FontWeight.Light, (-0.5).sp)
         ClockStyle.THIN_AESTHETIC -> Triple(FontFamily.SansSerif, FontWeight.ExtraLight, (-2.0).sp)
         ClockStyle.BOLD_COMPACT -> Triple(FontFamily.SansSerif, FontWeight.Bold, (-1.5).sp)
+        ClockStyle.STACKED_MINIMAL -> Triple(FontFamily.SansSerif, FontWeight.Bold, (-2.0).sp)
+        ClockStyle.CLEAN_CONDENSED -> Triple(FontFamily.SansSerif, FontWeight.Light, (-3.5).sp)
     }
 
     Column(
@@ -66,15 +68,7 @@ fun AtAGlanceHeader(
     ) {
         // Minimalist Clock Styled per ClockStyle
         if (settings.showClock) {
-            Text(
-                text = systemStatus.timeText.ifEmpty { "--:--" },
-                style = TextStyle(
-                    fontFamily = fontFamily,
-                    fontWeight = fontWeight,
-                    fontSize = settings.clockFontSizeSp.sp,
-                    letterSpacing = letterSpacing,
-                    color = TextPrimary
-                ),
+            Column(
                 modifier = Modifier
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
@@ -82,7 +76,48 @@ fun AtAGlanceHeader(
                     ) {
                         launchClock(context)
                     }
-            )
+            ) {
+                if (settings.clockStyle == ClockStyle.STACKED_MINIMAL) {
+                    val timeStr = systemStatus.timeText.ifEmpty { "12:00" }
+                    val parts = timeStr.split(":")
+                    val hours = parts.getOrNull(0) ?: "12"
+                    val minutes = parts.getOrNull(1) ?: "00"
+
+                    Text(
+                        text = hours,
+                        style = TextStyle(
+                            fontFamily = FontFamily.SansSerif,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = (settings.clockFontSizeSp * 1.05f).sp,
+                            letterSpacing = (-2.0).sp,
+                            lineHeight = (settings.clockFontSizeSp * 0.92f).sp,
+                            color = TextPrimary
+                        )
+                    )
+                    Text(
+                        text = minutes,
+                        style = TextStyle(
+                            fontFamily = FontFamily.SansSerif,
+                            fontWeight = FontWeight.Light,
+                            fontSize = (settings.clockFontSizeSp * 1.05f).sp,
+                            letterSpacing = (-2.0).sp,
+                            lineHeight = (settings.clockFontSizeSp * 0.92f).sp,
+                            color = themeAccentLight
+                        )
+                    )
+                } else {
+                    Text(
+                        text = systemStatus.timeText.ifEmpty { "--:--" },
+                        style = TextStyle(
+                            fontFamily = fontFamily,
+                            fontWeight = fontWeight,
+                            fontSize = settings.clockFontSizeSp.sp,
+                            letterSpacing = letterSpacing,
+                            color = TextPrimary
+                        )
+                    )
+                }
+            }
             Spacer(modifier = Modifier.height(2.dp))
         }
 

@@ -1,5 +1,8 @@
 package com.niagaraclone.launcher.ui.components
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -36,23 +40,30 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.niagaraclone.launcher.data.ColorExtractor
 import com.niagaraclone.launcher.data.model.ClockStyle
 import com.niagaraclone.launcher.data.model.IconShape
 import com.niagaraclone.launcher.data.model.IconStyle
 import com.niagaraclone.launcher.data.model.LauncherSettings
 import com.niagaraclone.launcher.data.model.ThemePreset
+import com.niagaraclone.launcher.data.model.WallpaperTheme
+import com.niagaraclone.launcher.data.model.WaveVerticalPosition
 import com.niagaraclone.launcher.data.model.WaveVisibility
 import com.niagaraclone.launcher.ui.theme.SurfaceTranslucent
 import com.niagaraclone.launcher.ui.theme.TextMuted
 import com.niagaraclone.launcher.ui.theme.TextPrimary
 import com.niagaraclone.launcher.ui.theme.TextSecondary
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -63,9 +74,31 @@ fun LauncherSettingsSheet(
     onUpdateSettings: ((LauncherSettings) -> LauncherSettings) -> Unit,
     onResetDefaults: () -> Unit
 ) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val themeAccent = Color(settings.themePreset.accentHex)
-    val themeAccentLight = Color(settings.themePreset.accentLightHex)
+    val themeAccent = Color(settings.activeAccentHex)
+    val themeAccentLight = Color(settings.activeAccentLightHex)
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            coroutineScope.launch {
+                val palette = ColorExtractor.extractAndSavePalette(context, uri)
+                if (palette != null) {
+                    onUpdateSettings { s ->
+                        s.copy(
+                            wallpaperTheme = WallpaperTheme.CUSTOM_PHOTO,
+                            customPhotoPath = palette.imagePath,
+                            customAccentHex = palette.accentHex,
+                            customAccentLightHex = palette.accentLightHex
+                        )
+                    }
+                }
+            }
+        }
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -123,41 +156,133 @@ fun LauncherSettingsSheet(
             HorizontalDivider(color = Color(0x22FFFFFF), thickness = 0.5.dp)
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 1. Theme Presets (Color Swatches)
-            SectionHeader(title = "THEME COLOR PRESET")
+            // 1. Wallpaper Themes & Palette Extraction
+            SectionHeader(title = "WALLPAPER THEME & SMART PALETTE")
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                ThemePreset.values().forEach { preset ->
-                    val isSelected = settings.themePreset == preset
+                WallpaperTheme.values().forEach { theme ->
+                    val isSelected = settings.wallpaperTheme == theme
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = if (isSelected) Color(preset.accentHex).copy(alpha = 0.35f) else Color(0x22FFFFFF),
-                        border = if (isSelected) androidx.compose.foundation.BorderStroke(2.dp, Color(preset.accentLightHex)) else null,
+                        color = if (isSelected) Color(theme.accentHex).copy(alpha = 0.35f) else Color(0x22FFFFFF),
+                        border = if (isSelected) androidx.compose.foundation.BorderStroke(2.dp, Color(theme.accentLightHex)) else null,
                         modifier = Modifier.clickable {
-                            onUpdateSettings { it.copy(themePreset = preset) }
+                            onUpdateSettings { it.copy(wallpaperTheme = theme) }
                         }
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(16.dp)
-                                    .background(Color(preset.accentHex), CircleShape)
-                            )
+                            if (theme == WallpaperTheme.CUSTOM_PHOTO) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Image,
+                                    contentDescription = null,
+                                    tint = Color(theme.accentHex),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            } else if (theme == WallpaperTheme.SYSTEM_WALLPAPER) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(16.dp)
+                                        .background(Color(theme.accentHex), CircleShape)
+                                )
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .size(16.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            Brush.verticalGradient(
+                                                listOf(Color(theme.topColorHex), Color(theme.bottomColorHex))
+                                            )
+                                        )
+                                        .border(1.dp, Color(theme.accentHex), CircleShape)
+                                )
+                            }
                             Text(
-                                text = preset.label,
+                                text = theme.label,
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                 ),
                                 color = if (isSelected) TextPrimary else TextSecondary
                             )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Choose Custom Wallpaper & Extract Palette button
+            Button(
+                onClick = { photoPickerLauncher.launch("image/*") },
+                colors = ButtonDefaults.buttonColors(containerColor = themeAccent.copy(alpha = 0.25f)),
+                shape = RoundedCornerShape(12.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, themeAccentLight.copy(alpha = 0.4f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Image,
+                    contentDescription = null,
+                    tint = themeAccentLight,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = if (settings.wallpaperTheme == WallpaperTheme.CUSTOM_PHOTO && !settings.customPhotoPath.isNullOrEmpty()) {
+                        "Change Custom Photo & Extract Palette"
+                    } else {
+                        "Choose Custom Wallpaper & Extract Palette"
+                    },
+                    color = TextPrimary,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+
+            if (settings.wallpaperTheme == WallpaperTheme.SYSTEM_WALLPAPER) {
+                Spacer(modifier = Modifier.height(14.dp))
+                SectionHeader(title = "SYSTEM WALLPAPER ACCENT COLOR")
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ThemePreset.values().forEach { preset ->
+                        val isSelected = settings.themePreset == preset
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isSelected) Color(preset.accentHex).copy(alpha = 0.35f) else Color(0x22FFFFFF),
+                            border = if (isSelected) androidx.compose.foundation.BorderStroke(2.dp, Color(preset.accentLightHex)) else null,
+                            modifier = Modifier.clickable {
+                                onUpdateSettings { it.copy(themePreset = preset) }
+                            }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(14.dp)
+                                        .background(Color(preset.accentHex), CircleShape)
+                                )
+                                Text(
+                                    text = preset.label,
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                    ),
+                                    color = if (isSelected) TextPrimary else TextSecondary
+                                )
+                            }
                         }
                     }
                 }
@@ -389,6 +514,31 @@ fun LauncherSettingsSheet(
 
             Spacer(modifier = Modifier.height(14.dp))
 
+            Text(
+                text = "Wave Vertical Alignment",
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                color = TextPrimary
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                WaveVerticalPosition.values().forEach { pos ->
+                    val isSelected = settings.waveVerticalPosition == pos
+                    ChipOption(
+                        label = pos.label,
+                        isSelected = isSelected,
+                        accentColor = themeAccent,
+                        accentLight = themeAccentLight,
+                        onClick = { onUpdateSettings { it.copy(waveVerticalPosition = pos) } },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
             SliderSetting(
                 title = "Wave Vertical Height",
                 valueDisplay = "${settings.waveHeightPercent}%",
@@ -420,6 +570,13 @@ fun LauncherSettingsSheet(
                 checked = settings.waveOnLeftSide,
                 accentColor = themeAccent,
                 onCheckedChange = { checked -> onUpdateSettings { it.copy(waveOnLeftSide = checked) } }
+            )
+
+            ToggleRow(
+                title = "Swipe Up on Home to Search",
+                checked = settings.swipeUpToSearch,
+                accentColor = themeAccent,
+                onCheckedChange = { checked -> onUpdateSettings { it.copy(swipeUpToSearch = checked) } }
             )
 
             Spacer(modifier = Modifier.height(32.dp))

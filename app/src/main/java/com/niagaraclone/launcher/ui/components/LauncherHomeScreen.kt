@@ -1,12 +1,16 @@
 package com.niagaraclone.launcher.ui.components
 
+import android.graphics.BitmapFactory
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,12 +51,20 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -60,6 +72,7 @@ import androidx.compose.ui.unit.sp
 import com.niagaraclone.launcher.R
 import com.niagaraclone.launcher.data.ReleaseInfo
 import com.niagaraclone.launcher.data.model.AppInfo
+import com.niagaraclone.launcher.data.model.WallpaperTheme
 import com.niagaraclone.launcher.ui.LauncherUiState
 import com.niagaraclone.launcher.ui.LauncherViewModel
 import com.niagaraclone.launcher.ui.UpdateUiState
@@ -85,9 +98,13 @@ fun LauncherHomeScreen(
 ) {
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
+    val density = LocalDensity.current
     val settings = uiState.settings
-    val themeAccent = Color(settings.themePreset.accentHex)
-    val themeAccentLight = Color(settings.themePreset.accentLightHex)
+    val themeAccent = Color(settings.activeAccentHex)
+    val themeAccentLight = Color(settings.activeAccentLightHex)
+
+    var isWaveScrubbing by remember { mutableStateOf(false) }
+    val dragThresholdPx = with(density) { 40.dp.toPx() }
 
     // Back button handling
     BackHandler(
@@ -138,16 +155,97 @@ fun LauncherHomeScreen(
         }
     }
 
-    // Base wallpaper scrim
-    val scrimColor = Color(settings.themePreset.scrimBaseHex).copy(
-        alpha = settings.scrimOpacityPercent / 100f
-    )
+    // Custom photo bitmap loader
+    val customBitmap = remember(settings.wallpaperTheme, settings.customPhotoPath) {
+        if (settings.wallpaperTheme == WallpaperTheme.CUSTOM_PHOTO && !settings.customPhotoPath.isNullOrEmpty()) {
+            try {
+                BitmapFactory.decodeFile(settings.customPhotoPath)
+            } catch (e: Exception) {
+                null
+            }
+        } else {
+            null
+        }
+    }
+
+    // Wallpaper Theme & Background Rendering
+    val backgroundModifier = when (settings.wallpaperTheme) {
+        WallpaperTheme.SYSTEM_WALLPAPER -> {
+            Modifier.background(
+                Color(settings.themePreset.scrimBaseHex).copy(
+                    alpha = settings.scrimOpacityPercent / 100f
+                )
+            )
+        }
+        WallpaperTheme.CUSTOM_PHOTO -> {
+            Modifier.background(Color.Black)
+        }
+        else -> {
+            Modifier.background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color(settings.wallpaperTheme.topColorHex),
+                        Color(settings.wallpaperTheme.bottomColorHex)
+                    )
+                )
+            )
+        }
+    }
+
+    // Swipe-Up to Search Gesture Detector
+    val swipeModifier = if (settings.swipeUpToSearch) {
+        Modifier.pointerInput(uiState.isSearchActive, uiState.isAllAppsVisible, isWaveScrubbing) {
+            if (uiState.isSearchActive || uiState.isAllAppsVisible || isWaveScrubbing) return@pointerInput
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = false)
+                var totalDrag = 0f
+                var triggered = false
+                while (true) {
+                    val event = awaitPointerEvent()
+                    val change = event.changes.firstOrNull() ?: break
+                    if (!change.pressed) break
+                    val deltaY = change.position.y - change.previousPosition.y
+                    totalDrag += deltaY
+                    if (totalDrag < -dragThresholdPx && !triggered) {
+                        triggered = true
+                        change.consume()
+                        viewModel.setSearchActive(true)
+                    }
+                }
+            }
+        }
+    } else {
+        Modifier
+    }
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(scrimColor)
+            .then(backgroundModifier)
+            .then(swipeModifier)
     ) {
+        // Custom photo background layer
+        if (settings.wallpaperTheme == WallpaperTheme.CUSTOM_PHOTO && customBitmap != null) {
+            Image(
+                bitmap = customBitmap.asImageBitmap(),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+            // Scrim over custom photo
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = settings.scrimOpacityPercent / 100f))
+            )
+        } else if (settings.wallpaperTheme != WallpaperTheme.SYSTEM_WALLPAPER && settings.scrimOpacityPercent > 0) {
+            // Subtle scrim overlay for curated themes
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = (settings.scrimOpacityPercent / 100f) * 0.4f))
+            )
+        }
         if (!uiState.isAllAppsVisible) {
             // ==========================================
             // MODE 1: PURE NIAGARA FAVORITES HOME SCREEN
@@ -352,7 +450,7 @@ fun LauncherHomeScreen(
             }
         }
 
-        // Niagara Wave Alphabet Scroller (Positioned according to waveOnLeftSide setting)
+        // Niagara Wave Alphabet Scroller (Positioned according to waveOnLeftSide & waveVerticalPosition settings)
         NiagaraWaveScroller(
             symbols = uiState.alphabetSymbols,
             availableSymbols = uiState.availableSymbols,
@@ -363,134 +461,22 @@ fun LauncherHomeScreen(
                 viewModel.onWaveScrubSymbolChanged(symbol)
             },
             onScrubbingStateChanged = { isScrubbing ->
+                isWaveScrubbing = isScrubbing
                 if (isScrubbing) {
                     viewModel.onWaveScrubStarted()
                 } else {
                     viewModel.onWaveScrubEnded()
                 }
             },
+            onOpenSettings = {
+                viewModel.setSettingsSheetActive(true)
+            },
             modifier = Modifier
                 .align(if (settings.waveOnLeftSide) Alignment.CenterStart else Alignment.CenterEnd)
                 .statusBarsPadding()
                 .navigationBarsPadding()
-                .padding(vertical = 36.dp)
+                .padding(vertical = 16.dp)
         )
-
-        // Bottom Ergonomic Quick Actions Pill (Search, Customize, Manage, Updates)
-        Row(
-            modifier = Modifier
-                .align(if (settings.waveOnLeftSide) Alignment.BottomEnd else Alignment.BottomStart)
-                .navigationBarsPadding()
-                .padding(
-                    start = if (settings.waveOnLeftSide) 20.dp else settings.edgePaddingDp.dp,
-                    end = if (settings.waveOnLeftSide) settings.edgePaddingDp.dp else 20.dp,
-                    bottom = 20.dp
-                ),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Search Pill
-            Surface(
-                shape = CircleShape,
-                color = Color(0x55000000),
-                contentColor = TextPrimary,
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .clickable { viewModel.setSearchActive(true) }
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Search,
-                        contentDescription = "Search",
-                        tint = TextSecondary,
-                        modifier = Modifier.size(17.dp)
-                    )
-                    Text(
-                        text = stringResource(R.string.search_hint),
-                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
-                        color = TextSecondary
-                    )
-                }
-            }
-
-            // Customize Settings Button
-            Surface(
-                shape = CircleShape,
-                color = Color(0x55000000),
-                contentColor = TextSecondary,
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .clickable { viewModel.setSettingsSheetActive(true) }
-            ) {
-                Box(
-                    modifier = Modifier.padding(10.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Palette,
-                        contentDescription = "Customize Niagara",
-                        tint = themeAccentLight,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
-
-            // Manage Apps Button
-            Surface(
-                shape = CircleShape,
-                color = Color(0x55000000),
-                contentColor = TextSecondary,
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .clickable { viewModel.setManageAppsActive(true) }
-            ) {
-                Box(
-                    modifier = Modifier.padding(10.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Tune,
-                        contentDescription = "Manage Apps",
-                        tint = TextSecondary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
-
-            // Updates & Setup Pill
-            val hasUpdateNotice = uiState.updateState is UpdateUiState.UpdateAvailable ||
-                    uiState.updateState is UpdateUiState.ReadyToInstall ||
-                    !uiState.permissionsState.allEssentialGranted
-
-            Surface(
-                shape = CircleShape,
-                color = if (hasUpdateNotice) themeAccent.copy(alpha = 0.5f) else Color(0x55000000),
-                contentColor = if (hasUpdateNotice) Color.White else TextSecondary,
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .clickable { viewModel.setUpdateSheetActive(true) }
-            ) {
-                Box(
-                    modifier = Modifier.padding(10.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = if (uiState.updateState is UpdateUiState.UpdateAvailable || uiState.updateState is UpdateUiState.ReadyToInstall) {
-                            Icons.Outlined.SystemUpdate
-                        } else {
-                            Icons.Outlined.CloudDownload
-                        },
-                        contentDescription = "Updates & Setup",
-                        tint = if (hasUpdateNotice) Color.White else TextSecondary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
-        }
 
         // App Search Fullscreen Overlay
         AppSearchOverlay(

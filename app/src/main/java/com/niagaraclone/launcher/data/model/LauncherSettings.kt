@@ -34,13 +34,39 @@ enum class ClockStyle(val label: String) {
     MODERN_MONO("Monospace"),
     SERIF_ELEGANT("Serif Elegant"),
     THIN_AESTHETIC("Ultra Thin"),
-    BOLD_COMPACT("Bold Compact")
+    BOLD_COMPACT("Bold Compact"),
+    STACKED_MINIMAL("Stacked Hour/Min"),
+    CLEAN_CONDENSED("Tall Condensed")
 }
 
 enum class WaveVisibility(val label: String) {
     ALWAYS_VISIBLE("Always Visible"),
     TOUCH_ONLY("Hidden Until Touched"),
     SUBTLE_DOTS("Minimal Dots")
+}
+
+enum class WaveVerticalPosition(val label: String) {
+    CENTER("Center"),
+    TOP("Top"),
+    BOTTOM("Bottom")
+}
+
+enum class WallpaperTheme(
+    val label: String,
+    val description: String,
+    val topColorHex: Long,
+    val bottomColorHex: Long,
+    val accentHex: Long,
+    val accentLightHex: Long
+) {
+    SYSTEM_WALLPAPER("System Live Wallpaper", "Renders system device wallpaper", 0x00000000, 0x00000000, 0xFF4E8CFF, 0xFF99C2FF),
+    BLACK_DESERT("Black Desert", "Pitch black dunes with misty light gray twilight", 0xFF1C1D21, 0xFF0A0A0C, 0xFFB0B3BA, 0xFFE0E2E6),
+    NOCTURNE_MINIMAL("Nocturne Minimal", "Onyx dark with subtle star-silver glow", 0xFF121316, 0xFF050507, 0xFF8E929A, 0xFFD8DCE3),
+    NORDIC_SLATE("Nordic Slate", "Cool charcoal with serene mist blue", 0xFF181D24, 0xFF0C0F13, 0xFF6C8DAE, 0xFFAEC4DC),
+    DEEP_SPACE("Deep Space", "Midnight black with deep sapphire glow", 0xFF0D111A, 0xFF04060A, 0xFF3D6EB4, 0xFF8AB5F8),
+    OBSIDIAN_ROSE("Obsidian Rose", "Smoky graphite with muted dusty mauve", 0xFF1C1417, 0xFF0D080A, 0xFFB87082, 0xFFE2A8B6),
+    EMERALD_NIGHT("Emerald Night", "Deep pine shadows with pale sage accents", 0xFF0F1A14, 0xFF060D09, 0xFF4E9B6E, 0xFF98D4B0),
+    CUSTOM_PHOTO("Custom Photo / Smart Palette", "Extracted from chosen image", 0xFF000000, 0xFF000000, 0xFF4E8CFF, 0xFF99C2FF)
 }
 
 data class LauncherSettings(
@@ -61,5 +87,25 @@ data class LauncherSettings(
     val clockFontSizeSp: Int = 54,        // range 32..72
     val waveVisibility: WaveVisibility = WaveVisibility.ALWAYS_VISIBLE,
     val waveHeightPercent: Int = 68,      // range 40..90
-    val waveLetterSizeSp: Int = 10        // range 8..14
-)
+    val waveLetterSizeSp: Int = 10,       // range 8..14
+    val waveVerticalPosition: WaveVerticalPosition = WaveVerticalPosition.CENTER,
+    val wallpaperTheme: WallpaperTheme = WallpaperTheme.BLACK_DESERT,
+    val customPhotoPath: String? = null,
+    val customAccentHex: Long = 0xFFB0B3BA,
+    val customAccentLightHex: Long = 0xFFE0E2E6,
+    val swipeUpToSearch: Boolean = true
+) {
+    val activeAccentHex: Long
+        get() = when (wallpaperTheme) {
+            WallpaperTheme.CUSTOM_PHOTO -> customAccentHex
+            WallpaperTheme.SYSTEM_WALLPAPER -> themePreset.accentHex
+            else -> wallpaperTheme.accentHex
+        }
+
+    val activeAccentLightHex: Long
+        get() = when (wallpaperTheme) {
+            WallpaperTheme.CUSTOM_PHOTO -> customAccentLightHex
+            WallpaperTheme.SYSTEM_WALLPAPER -> themePreset.accentLightHex
+            else -> wallpaperTheme.accentLightHex
+        }
+}

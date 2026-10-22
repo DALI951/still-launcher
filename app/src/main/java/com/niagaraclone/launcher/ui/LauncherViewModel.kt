@@ -61,7 +61,7 @@ data class LauncherUiState(
     val isSettingsSheetActive: Boolean = false,
     val isDefaultPromptDialogVisible: Boolean = false,
     val selectedAppForMenu: AppInfo? = null,
-    val alphabetSymbols: List<Char> = listOf('★', '#') + ('A'..'Z').toList(),
+    val alphabetSymbols: List<Char> = listOf('★', '#') + ('A'..'Z').toList() + listOf('⚙'),
     val availableSymbols: Set<Char> = emptySet(),
     val letterSectionIndices: Map<Char, Int> = emptyMap(),
     val updateState: UpdateUiState = UpdateUiState.Idle,

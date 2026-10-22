@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -15,6 +16,8 @@ import com.niagaraclone.launcher.data.model.IconShape
 import com.niagaraclone.launcher.data.model.IconStyle
 import com.niagaraclone.launcher.data.model.LauncherSettings
 import com.niagaraclone.launcher.data.model.ThemePreset
+import com.niagaraclone.launcher.data.model.WallpaperTheme
+import com.niagaraclone.launcher.data.model.WaveVerticalPosition
 import com.niagaraclone.launcher.data.model.WaveVisibility
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -52,6 +55,14 @@ class PreferencesRepository(private val context: Context) {
         val SETTING_WAVE_VISIBILITY = stringPreferencesKey("setting_wave_visibility")
         val SETTING_WAVE_HEIGHT_PERCENT = intPreferencesKey("setting_wave_height_percent")
         val SETTING_WAVE_LETTER_SIZE = intPreferencesKey("setting_wave_letter_size")
+
+        // Phase 7 Touch Physics, Wallpapers & Ergonomics
+        val SETTING_WAVE_VERTICAL_POSITION = stringPreferencesKey("setting_wave_vertical_position")
+        val SETTING_WALLPAPER_THEME = stringPreferencesKey("setting_wallpaper_theme")
+        val SETTING_CUSTOM_PHOTO_PATH = stringPreferencesKey("setting_custom_photo_path")
+        val SETTING_CUSTOM_ACCENT_HEX = longPreferencesKey("setting_custom_accent_hex")
+        val SETTING_CUSTOM_ACCENT_LIGHT_HEX = longPreferencesKey("setting_custom_accent_light_hex")
+        val SETTING_SWIPE_UP_TO_SEARCH = booleanPreferencesKey("setting_swipe_up_to_search")
     }
 
     private val dataStore = context.launcherDataStore
@@ -143,6 +154,15 @@ class PreferencesRepository(private val context: Context) {
             val waveHeightPercent = prefs[PreferencesKeys.SETTING_WAVE_HEIGHT_PERCENT] ?: 68
             val waveLetterSize = prefs[PreferencesKeys.SETTING_WAVE_LETTER_SIZE] ?: 10
 
+            val waveVertPosName = prefs[PreferencesKeys.SETTING_WAVE_VERTICAL_POSITION] ?: WaveVerticalPosition.CENTER.name
+            val waveVertPos = try { WaveVerticalPosition.valueOf(waveVertPosName) } catch (e: Exception) { WaveVerticalPosition.CENTER }
+            val wallpaperThemeName = prefs[PreferencesKeys.SETTING_WALLPAPER_THEME] ?: WallpaperTheme.BLACK_DESERT.name
+            val wallpaperTheme = try { WallpaperTheme.valueOf(wallpaperThemeName) } catch (e: Exception) { WallpaperTheme.BLACK_DESERT }
+            val customPhotoPath = prefs[PreferencesKeys.SETTING_CUSTOM_PHOTO_PATH]
+            val customAccentHex = prefs[PreferencesKeys.SETTING_CUSTOM_ACCENT_HEX] ?: 0xFFB0B3BAL
+            val customAccentLightHex = prefs[PreferencesKeys.SETTING_CUSTOM_ACCENT_LIGHT_HEX] ?: 0xFFE0E2E6L
+            val swipeUpToSearch = prefs[PreferencesKeys.SETTING_SWIPE_UP_TO_SEARCH] ?: true
+
             LauncherSettings(
                 iconSizeDp = iconSize,
                 iconStyle = iconStyle,
@@ -161,7 +181,13 @@ class PreferencesRepository(private val context: Context) {
                 clockFontSizeSp = clockFontSize,
                 waveVisibility = waveVisibility,
                 waveHeightPercent = waveHeightPercent,
-                waveLetterSizeSp = waveLetterSize
+                waveLetterSizeSp = waveLetterSize,
+                waveVerticalPosition = waveVertPos,
+                wallpaperTheme = wallpaperTheme,
+                customPhotoPath = customPhotoPath,
+                customAccentHex = customAccentHex,
+                customAccentLightHex = customAccentLightHex,
+                swipeUpToSearch = swipeUpToSearch
             )
         }
 
@@ -191,6 +217,16 @@ class PreferencesRepository(private val context: Context) {
             prefs[PreferencesKeys.SETTING_WAVE_VISIBILITY] = updated.waveVisibility.name
             prefs[PreferencesKeys.SETTING_WAVE_HEIGHT_PERCENT] = updated.waveHeightPercent
             prefs[PreferencesKeys.SETTING_WAVE_LETTER_SIZE] = updated.waveLetterSizeSp
+            prefs[PreferencesKeys.SETTING_WAVE_VERTICAL_POSITION] = updated.waveVerticalPosition.name
+            prefs[PreferencesKeys.SETTING_WALLPAPER_THEME] = updated.wallpaperTheme.name
+            if (updated.customPhotoPath != null) {
+                prefs[PreferencesKeys.SETTING_CUSTOM_PHOTO_PATH] = updated.customPhotoPath
+            } else {
+                prefs.remove(PreferencesKeys.SETTING_CUSTOM_PHOTO_PATH)
+            }
+            prefs[PreferencesKeys.SETTING_CUSTOM_ACCENT_HEX] = updated.customAccentHex
+            prefs[PreferencesKeys.SETTING_CUSTOM_ACCENT_LIGHT_HEX] = updated.customAccentLightHex
+            prefs[PreferencesKeys.SETTING_SWIPE_UP_TO_SEARCH] = updated.swipeUpToSearch
         }
     }
 
@@ -217,6 +253,12 @@ class PreferencesRepository(private val context: Context) {
             prefs.remove(PreferencesKeys.SETTING_WAVE_VISIBILITY)
             prefs.remove(PreferencesKeys.SETTING_WAVE_HEIGHT_PERCENT)
             prefs.remove(PreferencesKeys.SETTING_WAVE_LETTER_SIZE)
+            prefs.remove(PreferencesKeys.SETTING_WAVE_VERTICAL_POSITION)
+            prefs.remove(PreferencesKeys.SETTING_WALLPAPER_THEME)
+            prefs.remove(PreferencesKeys.SETTING_CUSTOM_PHOTO_PATH)
+            prefs.remove(PreferencesKeys.SETTING_CUSTOM_ACCENT_HEX)
+            prefs.remove(PreferencesKeys.SETTING_CUSTOM_ACCENT_LIGHT_HEX)
+            prefs.remove(PreferencesKeys.SETTING_SWIPE_UP_TO_SEARCH)
         }
     }
 
