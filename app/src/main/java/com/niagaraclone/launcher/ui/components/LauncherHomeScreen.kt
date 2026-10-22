@@ -4,6 +4,8 @@ import android.graphics.BitmapFactory
 import android.view.HapticFeedbackConstants
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -203,6 +205,18 @@ fun LauncherHomeScreen(
         }
     }
 
+    // Smooth transitions for background gradient colors
+    val animatedTopColor by animateColorAsState(
+        targetValue = Color(settings.wallpaperTheme.topColorHex),
+        animationSpec = tween(durationMillis = 350),
+        label = "animatedTopColor"
+    )
+    val animatedBottomColor by animateColorAsState(
+        targetValue = Color(settings.wallpaperTheme.bottomColorHex),
+        animationSpec = tween(durationMillis = 350),
+        label = "animatedBottomColor"
+    )
+
     // Wallpaper Theme & Background Rendering
     val backgroundModifier = when {
         settings.wallpaperTheme == WallpaperTheme.SYSTEM_WALLPAPER -> {
@@ -219,8 +233,8 @@ fun LauncherHomeScreen(
             Modifier.background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(settings.wallpaperTheme.topColorHex),
-                        Color(settings.wallpaperTheme.bottomColorHex)
+                        animatedTopColor,
+                        animatedBottomColor
                     )
                 )
             )

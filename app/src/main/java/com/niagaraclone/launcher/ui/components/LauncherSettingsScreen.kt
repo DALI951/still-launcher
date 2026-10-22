@@ -16,8 +16,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -195,21 +193,14 @@ fun LauncherSettingsScreen(
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     var isSandboxExpanded by remember { mutableStateOf(true) }
 
-    Box(
+    Surface(
+        color = Color(0xFF0C0D11),
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF0C0D11))
-            .pointerInput(Unit) {
-                awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    down.consume()
-                    while (true) {
-                        val event = awaitPointerEvent()
-                        event.changes.forEach { it.consume() }
-                        if (event.changes.none { it.pressed }) break
-                    }
-                }
-            }
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) { /* Absorb clicks on empty space to prevent click-through */ }
             .statusBarsPadding()
             .navigationBarsPadding()
     ) {

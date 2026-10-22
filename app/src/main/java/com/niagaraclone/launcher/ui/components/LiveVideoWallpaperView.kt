@@ -7,6 +7,7 @@ import android.media.MediaPlayer
 import android.util.Log
 import android.view.Surface
 import android.view.TextureView
+import java.io.File
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -155,12 +156,20 @@ private fun initAndStartMediaPlayer(
     onPlayerReady: (MediaPlayer) -> Unit
 ) {
     try {
-        val assetPath = if (fileName.startsWith("wallpapers/")) fileName else "wallpapers/$fileName"
-        val afd = context.assets.openFd(assetPath)
+        val cleanName = if (fileName.startsWith("wallpapers/")) fileName.removePrefix("wallpapers/") else fileName
+        val cacheDir = File(context.cacheDir, "wallpapers").apply { mkdirs() }
+        val videoFile = File(cacheDir, cleanName)
+
+        if (!videoFile.exists() || videoFile.length() == 0L) {
+            context.assets.open("wallpapers/$cleanName").use { input ->
+                videoFile.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+        }
 
         val mp = MediaPlayer().apply {
-            setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
-            afd.close()
+            setDataSource(videoFile.absolutePath)
 
             setSurface(Surface(surfaceTexture))
             isLooping = true

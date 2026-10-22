@@ -69,6 +69,9 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+    aaptOptions {
+        noCompress += listOf("webm", "mp4", "jpg", "png")
+    }
 }
 
 dependencies {
