@@ -10,10 +10,13 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,6 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -151,12 +155,7 @@ fun NiagaraWaveScroller(
                     if (initialIndex != activeIndex) {
                         activeIndex = initialIndex
                         view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                        val sym = effectiveSymbols[initialIndex]
-                        if (sym == '⚙') {
-                            onOpenSettings()
-                        } else {
-                            onSymbolSelected(sym)
-                        }
+                        onSymbolSelected(effectiveSymbols[initialIndex])
                     }
 
                     while (true) {
@@ -175,19 +174,9 @@ fun NiagaraWaveScroller(
                         if (newIndex != activeIndex) {
                             activeIndex = newIndex
                             view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                            val sym = effectiveSymbols[newIndex]
-                            if (sym == '⚙') {
-                                onOpenSettings()
-                            } else {
-                                onSymbolSelected(sym)
-                            }
+                            onSymbolSelected(effectiveSymbols[newIndex])
                         }
                         change.consume()
-                    }
-
-                    // Release handling
-                    if (activeIndex in effectiveSymbols.indices && effectiveSymbols[activeIndex] == '⚙') {
-                        onOpenSettings()
                     }
 
                     isTouching = false
@@ -208,7 +197,7 @@ fun NiagaraWaveScroller(
         val numSymbols = effectiveSymbols.size.coerceAtLeast(1)
         val symbolSpacing = waveRenderHeight / numSymbols
 
-        // Floating letter preview bubble appearing next to thumb
+        // Floating frosted glass letter preview bubble appearing next to thumb
         AnimatedVisibility(
             visible = isTouching && activeIndex in effectiveSymbols.indices,
             enter = scaleIn() + fadeIn(),
@@ -216,30 +205,56 @@ fun NiagaraWaveScroller(
             modifier = Modifier.align(if (isLeftSide) Alignment.TopStart else Alignment.TopEnd)
         ) {
             if (activeIndex in effectiveSymbols.indices) {
-                val bubbleOffsetY = (waveTopOffset + touchY - with(density) { 32.dp.toPx() })
-                    .coerceIn(0f, totalAvailableHeight - with(density) { 64.dp.toPx() })
+                val isSettingsSymbol = effectiveSymbols[activeIndex] == '⚙'
+                val bubbleWidth = if (isSettingsSymbol) 120.dp else 56.dp
+                val bubbleHeight = 56.dp
+                val bubbleShape = if (isSettingsSymbol) RoundedCornerShape(18.dp) else CircleShape
+
+                val bubbleOffsetY = (waveTopOffset + touchY - with(density) { 28.dp.toPx() })
+                    .coerceIn(0f, totalAvailableHeight - with(density) { 56.dp.toPx() })
 
                 val bubbleOffsetX = if (isLeftSide) {
-                    with(density) { 88.dp.roundToPx() }
+                    with(density) { 68.dp.roundToPx() }
                 } else {
-                    -with(density) { 88.dp.roundToPx() }
+                    -with(density) { (bubbleWidth.value + 12f).dp.roundToPx() }
                 }
 
                 Box(
                     modifier = Modifier
                         .offset { IntOffset(bubbleOffsetX, bubbleOffsetY.roundToInt()) }
-                        .size(64.dp)
-                        .shadow(12.dp, CircleShape)
-                        .background(themeAccent, CircleShape),
+                        .size(width = bubbleWidth, height = bubbleHeight)
+                        .shadow(16.dp, bubbleShape)
+                        .background(Color(0xEE1C1E24), bubbleShape)
+                        .border(1.5.dp, themeAccentLight.copy(alpha = 0.6f), bubbleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = effectiveSymbols[activeIndex].toString(),
-                        color = Color.White,
-                        fontSize = if (effectiveSymbols[activeIndex] == '⚙') 22.sp else 28.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
+                    if (isSettingsSymbol) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.padding(horizontal = 10.dp)
+                        ) {
+                            Text(
+                                text = "⚙",
+                                fontSize = 16.sp,
+                                color = themeAccentLight
+                            )
+                            Text(
+                                text = "Settings",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                    } else {
+                        Text(
+                            text = effectiveSymbols[activeIndex].toString(),
+                            color = Color.White,
+                            fontSize = 26.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
             }
         }

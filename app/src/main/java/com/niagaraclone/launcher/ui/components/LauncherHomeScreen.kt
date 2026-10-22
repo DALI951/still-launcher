@@ -5,6 +5,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -143,9 +145,13 @@ fun LauncherHomeScreen(
         val symbol = uiState.selectedSectionSymbol ?: return@LaunchedEffect
         if (symbol == '★') {
             viewModel.setAllAppsVisible(false)
+        } else if (symbol == '⚙') {
+            viewModel.setAllAppsVisible(true)
+            val settingsIndex = sectionIndexMap['⚙'] ?: allAppItems.lastIndex
+            listState.scrollToItem(settingsIndex)
         } else {
             val targetIndex = sectionIndexMap[symbol] ?: run {
-                val availableLetters = sectionIndexMap.keys.sorted()
+                val availableLetters = sectionIndexMap.keys.filter { it != '⚙' }.sorted()
                 val nearestChar = availableLetters.minByOrNull { abs(it.code - symbol.code) }
                 nearestChar?.let { sectionIndexMap[it] }
             }
@@ -445,6 +451,53 @@ fun LauncherHomeScreen(
                                 )
                             }
                         }
+                        is AllAppListItem.SettingsItem -> {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(
+                                        start = settings.edgePaddingDp.dp,
+                                        end = (settings.edgePaddingDp + 16).dp,
+                                        top = 16.dp,
+                                        bottom = 36.dp
+                                    )
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(Color(0x22FFFFFF))
+                                    .clickable { viewModel.setSettingsSheetActive(true) }
+                                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .background(themeAccent.copy(alpha = 0.35f), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Tune,
+                                        contentDescription = "Niagara Settings",
+                                        tint = themeAccentLight,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Niagara Settings",
+                                        style = MaterialTheme.typography.bodyLarge.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 15.sp
+                                        ),
+                                        color = TextPrimary
+                                    )
+                                    Text(
+                                        text = "Theme Studio & Customization",
+                                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                                        color = TextSecondary
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -540,13 +593,26 @@ fun LauncherHomeScreen(
             )
         }
 
-        // Live Customization & Settings Sheet
-        if (uiState.isSettingsSheetActive) {
-            LauncherSettingsSheet(
+        // Full-Screen Dedicated Niagara Settings App & Theme Studio
+        AnimatedVisibility(
+            visible = uiState.isSettingsSheetActive,
+            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            LauncherSettingsScreen(
                 settings = settings,
                 onDismissRequest = { viewModel.setSettingsSheetActive(false) },
-                onUpdateSettings = { viewModel.updateSettings(it) },
-                onResetDefaults = { viewModel.resetSettingsToDefault() }
+                onApplySettings = { updated ->
+                    viewModel.updateSettings { updated }
+                    viewModel.setSettingsSheetActive(false)
+                },
+                onResetDefaults = { viewModel.resetSettingsToDefault() },
+                onRequestDefaultLauncher = onRequestDefaultLauncher,
+                onOpenUpdates = {
+                    viewModel.setSettingsSheetActive(false)
+                    viewModel.setUpdateSheetActive(true)
+                }
             )
         }
 
@@ -604,6 +670,7 @@ fun LauncherHomeScreen(
 private sealed class AllAppListItem(val key: String) {
     data class AppItem(val app: AppInfo) : AllAppListItem("all_${app.uniqueKey}")
     data class SectionHeader(val title: String) : AllAppListItem("header_$title")
+    data object SettingsItem : AllAppListItem("bottom_niagara_settings")
 }
 
 private fun buildAllAppItemsAndIndices(
@@ -627,6 +694,11 @@ private fun buildAllAppItemsAndIndices(
         }
         items.add(AllAppListItem.AppItem(app))
     }
+
+    // Append dedicated Niagara Settings item at the bottom of the list
+    val settingsItemIndex = items.size + headerOffset
+    items.add(AllAppListItem.SettingsItem)
+    sectionIndices['⚙'] = settingsItemIndex
 
     return Pair(items, sectionIndices)
 }
