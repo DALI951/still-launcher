@@ -57,14 +57,15 @@ enum class WallpaperTheme(
     val topColorHex: Long,
     val bottomColorHex: Long,
     val accentHex: Long,
-    val accentLightHex: Long
+    val accentLightHex: Long,
+    val assetFileName: String? = null
 ) {
     SYSTEM_WALLPAPER("System Live Wallpaper", "Renders system device wallpaper", 0x00000000, 0x00000000, 0xFF4E8CFF, 0xFF99C2FF),
-    BLACK_DESERT("Black Desert", "Pitch black dunes with misty light gray twilight", 0xFF1C1D21, 0xFF0A0A0C, 0xFFB0B3BA, 0xFFE0E2E6),
-    DUNE_TWILIGHT("Dune Twilight", "Warm obsidian dunes with copper twilight", 0xFF1A1614, 0xFF0A0807, 0xFFD49B6A, 0xFFF5C7A1),
-    NOCTURNE_MINIMAL("Nocturne Minimal", "Onyx dark with subtle star-silver glow", 0xFF121316, 0xFF050507, 0xFF8E929A, 0xFFD8DCE3),
-    NORDIC_SLATE("Nordic Slate", "Cool charcoal with serene mist blue", 0xFF181D24, 0xFF0C0F13, 0xFF6C8DAE, 0xFFAEC4DC),
-    DEEP_SPACE("Deep Space", "Midnight black with deep sapphire glow", 0xFF0D111A, 0xFF04060A, 0xFF3D6EB4, 0xFF8AB5F8),
+    BLACK_DESERT("Black Desert", "Pitch black dunes with misty light gray twilight", 0xFF1C1D21, 0xFF0A0A0C, 0xFFB0B3BA, 0xFFE0E2E6, "wallpaper_black_desert.jpg"),
+    DUNE_TWILIGHT("Dune Twilight", "Warm obsidian dunes with copper twilight", 0xFF1A1614, 0xFF0A0807, 0xFFD49B6A, 0xFFF5C7A1, "wallpaper_dune_twilight.jpg"),
+    NOCTURNE_MINIMAL("Nocturne Minimal", "Onyx dark with subtle star-silver glow", 0xFF121316, 0xFF050507, 0xFF8E929A, 0xFFD8DCE3, "wallpaper_nocturne_mountain.jpg"),
+    NORDIC_SLATE("Nordic Slate", "Cool charcoal with serene mist blue", 0xFF181D24, 0xFF0C0F13, 0xFF6C8DAE, 0xFFAEC4DC, "wallpaper_nordic_fog.jpg"),
+    DEEP_SPACE("Deep Space", "Midnight black with deep sapphire glow", 0xFF0D111A, 0xFF04060A, 0xFF3D6EB4, 0xFF8AB5F8, "wallpaper_deep_space.jpg"),
     ABYSSAL_GOLD("Abyssal Gold", "Pitch black with champagne gold luster", 0xFF141414, 0xFF050505, 0xFFC5A866, 0xFFEAD5A0),
     CYBERPUNK_DARK("Cyberpunk Dark", "Carbon night with electric cyan and magenta", 0xFF0D1117, 0xFF050608, 0xFF00E5FF, 0xFF80F2FF),
     OBSIDIAN_ROSE("Obsidian Rose", "Smoky graphite with muted dusty mauve", 0xFF1C1417, 0xFF0D080A, 0xFFB87082, 0xFFE2A8B6),

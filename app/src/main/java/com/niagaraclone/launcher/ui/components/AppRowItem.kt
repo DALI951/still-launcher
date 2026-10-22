@@ -113,8 +113,8 @@ fun ThemedAppIcon(
     settings: LauncherSettings,
     modifier: Modifier = Modifier
 ) {
-    val themeAccent = Color(settings.themePreset.accentHex)
-    val themeAccentLight = Color(settings.themePreset.accentLightHex)
+    val themeAccent = Color(settings.activeAccentHex)
+    val themeAccentLight = Color(settings.activeAccentLightHex)
 
     when (settings.iconStyle) {
         IconStyle.MINIMAL_DOTS -> {
@@ -170,14 +170,14 @@ fun ThemedAppIcon(
                             val mono = drawable.monochrome!!.mutate()
                             mono.setBounds(0, 0, width, height)
                             mono.colorFilter = PorterDuffColorFilter(
-                                settings.themePreset.accentLightHex.toInt(),
+                                settings.activeAccentLightHex.toInt(),
                                 PorterDuff.Mode.SRC_IN
                             )
                             mono.draw(canvas.nativeCanvas)
                             mono.colorFilter = null
                         } else {
                             // High-quality desaturation + theme accent multiplier
-                            val tint = settings.themePreset.accentLightHex
+                            val tint = settings.activeAccentLightHex
                             val r = ((tint shr 16) and 0xFF) / 255f
                             val g = ((tint shr 8) and 0xFF) / 255f
                             val b = (tint and 0xFF) / 255f

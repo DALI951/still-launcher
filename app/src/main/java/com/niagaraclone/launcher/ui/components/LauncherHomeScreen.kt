@@ -66,12 +66,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.niagaraclone.launcher.R
+import com.niagaraclone.launcher.data.AssetWallpaperLoader
 import com.niagaraclone.launcher.data.ReleaseInfo
 import com.niagaraclone.launcher.data.model.AppInfo
 import com.niagaraclone.launcher.data.model.WallpaperTheme
@@ -98,6 +100,7 @@ fun LauncherHomeScreen(
     onRequestUnknownSources: () -> Unit = {},
     onRequestNotifications: () -> Unit = {}
 ) {
+    val context = LocalContext.current
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
     val density = LocalDensity.current
@@ -174,16 +177,26 @@ fun LauncherHomeScreen(
         }
     }
 
+    // Asset wallpaper bitmap loader
+    val assetBitmap = remember(settings.wallpaperTheme, settings.wallpaperTheme.assetFileName) {
+        val fileName = settings.wallpaperTheme.assetFileName
+        if (fileName != null) {
+            AssetWallpaperLoader.loadBitmap(context, fileName)
+        } else {
+            null
+        }
+    }
+
     // Wallpaper Theme & Background Rendering
-    val backgroundModifier = when (settings.wallpaperTheme) {
-        WallpaperTheme.SYSTEM_WALLPAPER -> {
+    val backgroundModifier = when {
+        settings.wallpaperTheme == WallpaperTheme.SYSTEM_WALLPAPER -> {
             Modifier.background(
                 Color(settings.themePreset.scrimBaseHex).copy(
                     alpha = settings.scrimOpacityPercent / 100f
                 )
             )
         }
-        WallpaperTheme.CUSTOM_PHOTO -> {
+        settings.wallpaperTheme == WallpaperTheme.CUSTOM_PHOTO || assetBitmap != null -> {
             Modifier.background(Color.Black)
         }
         else -> {
@@ -230,7 +243,7 @@ fun LauncherHomeScreen(
             .then(backgroundModifier)
             .then(swipeModifier)
     ) {
-        // Custom photo background layer
+        // Custom photo or Curated Asset wallpaper background layer
         if (settings.wallpaperTheme == WallpaperTheme.CUSTOM_PHOTO && customBitmap != null) {
             Image(
                 bitmap = customBitmap.asImageBitmap(),
@@ -239,6 +252,19 @@ fun LauncherHomeScreen(
                 modifier = Modifier.fillMaxSize()
             )
             // Scrim over custom photo
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = settings.scrimOpacityPercent / 100f))
+            )
+        } else if (assetBitmap != null) {
+            Image(
+                bitmap = assetBitmap.asImageBitmap(),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+            // Authentic scrim overlay over asset photo wallpaper
             Box(
                 modifier = Modifier
                     .fillMaxSize()

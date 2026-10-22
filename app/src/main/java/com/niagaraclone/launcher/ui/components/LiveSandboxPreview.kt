@@ -26,6 +26,7 @@ import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,12 +36,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.niagaraclone.launcher.data.AssetWallpaperLoader
 import com.niagaraclone.launcher.data.model.ClockStyle
 import com.niagaraclone.launcher.data.model.IconShape
 import com.niagaraclone.launcher.data.model.IconStyle
@@ -60,8 +63,15 @@ fun LiveSandboxPreview(
     modifier: Modifier = Modifier,
     customBitmap: Bitmap? = null
 ) {
+    val context = LocalContext.current
     val themeAccent = Color(settings.activeAccentHex)
     val themeAccentLight = Color(settings.activeAccentLightHex)
+
+    val assetBitmap = remember(settings.wallpaperTheme, settings.wallpaperTheme.assetFileName) {
+        settings.wallpaperTheme.assetFileName?.let { fileName ->
+            AssetWallpaperLoader.loadBitmap(context, fileName)
+        }
+    }
 
     // Outer Bezel Frame (Miniature Phone)
     Box(
@@ -77,6 +87,18 @@ fun LiveSandboxPreview(
         if (settings.wallpaperTheme == WallpaperTheme.CUSTOM_PHOTO && customBitmap != null) {
             Image(
                 bitmap = customBitmap.asImageBitmap(),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = settings.scrimOpacityPercent / 100f))
+            )
+        } else if (assetBitmap != null) {
+            Image(
+                bitmap = assetBitmap.asImageBitmap(),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()

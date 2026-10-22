@@ -79,7 +79,7 @@ fun ManageAppsSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     var searchQuery by remember { mutableStateOf("") }
-    val themeAccent = Color(settings.themePreset.accentHex)
+    val themeAccent = Color(settings.activeAccentHex)
 
     val tabs = listOf(
         "Favorites (${favoriteApps.size})",

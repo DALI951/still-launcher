@@ -12,6 +12,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -72,10 +73,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.niagaraclone.launcher.data.AssetWallpaperLoader
 import com.niagaraclone.launcher.data.ColorExtractor
 import com.niagaraclone.launcher.data.model.ClockStyle
 import com.niagaraclone.launcher.data.model.IconShape
@@ -347,48 +351,96 @@ fun LauncherSettingsScreen(
                                     }
                                 ) {
                                     Column(
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
                                         horizontalAlignment = Alignment.CenterHorizontally,
                                         verticalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
                                         if (theme == WallpaperTheme.CUSTOM_PHOTO) {
                                             Box(
                                                 modifier = Modifier
-                                                    .size(24.dp)
-                                                    .background(Color(0x33FFFFFF), CircleShape),
+                                                    .size(width = 44.dp, height = 54.dp)
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(Color(0x33FFFFFF)),
                                                 contentAlignment = Alignment.Center
                                             ) {
                                                 Icon(
                                                     imageVector = Icons.Outlined.Image,
                                                     contentDescription = null,
                                                     tint = Color(theme.accentHex),
-                                                    modifier = Modifier.size(16.dp)
+                                                    modifier = Modifier.size(20.dp)
                                                 )
                                             }
                                         } else if (theme == WallpaperTheme.SYSTEM_WALLPAPER) {
                                             Box(
                                                 modifier = Modifier
-                                                    .size(24.dp)
-                                                    .background(Color(theme.accentHex), CircleShape)
-                                            )
+                                                    .size(width = 44.dp, height = 54.dp)
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(Color(theme.accentHex)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Outlined.Home,
+                                                    contentDescription = null,
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                        } else if (theme.assetFileName != null) {
+                                            val thumb = remember(theme.assetFileName) {
+                                                AssetWallpaperLoader.loadThumbnail(context, theme.assetFileName, 88, 108)
+                                            }
+                                            if (thumb != null) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(width = 44.dp, height = 54.dp)
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .border(1.dp, Color(theme.accentHex).copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+                                                ) {
+                                                    Image(
+                                                        bitmap = thumb.asImageBitmap(),
+                                                        contentDescription = theme.label,
+                                                        contentScale = ContentScale.Crop,
+                                                        modifier = Modifier.fillMaxSize()
+                                                    )
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .align(Alignment.BottomEnd)
+                                                            .padding(3.dp)
+                                                            .size(8.dp)
+                                                            .background(Color(theme.accentHex), CircleShape)
+                                                    )
+                                                }
+                                            } else {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(width = 44.dp, height = 54.dp)
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .background(
+                                                            Brush.verticalGradient(
+                                                                listOf(Color(theme.topColorHex), Color(theme.bottomColorHex))
+                                                            )
+                                                        )
+                                                        .border(1.dp, Color(theme.accentHex), RoundedCornerShape(8.dp))
+                                                )
+                                            }
                                         } else {
                                             Box(
                                                 modifier = Modifier
-                                                    .size(24.dp)
-                                                    .clip(CircleShape)
+                                                    .size(width = 44.dp, height = 54.dp)
+                                                    .clip(RoundedCornerShape(8.dp))
                                                     .background(
                                                         Brush.verticalGradient(
                                                             listOf(Color(theme.topColorHex), Color(theme.bottomColorHex))
                                                         )
                                                     )
-                                                    .border(1.dp, Color(theme.accentHex), CircleShape)
+                                                    .border(1.dp, Color(theme.accentHex), RoundedCornerShape(8.dp))
                                             )
                                         }
                                         Text(
                                             text = theme.label,
                                             style = MaterialTheme.typography.bodySmall.copy(
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                                fontSize = 12.sp
+                                                fontSize = 11.sp
                                             ),
                                             color = if (isSelected) TextPrimary else TextSecondary
                                         )
