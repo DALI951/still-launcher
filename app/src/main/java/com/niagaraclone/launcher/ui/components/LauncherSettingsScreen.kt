@@ -16,6 +16,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -75,6 +77,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -101,11 +104,11 @@ import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
 private enum class AccentSwatch(val label: String, val hex: Long, val lightHex: Long) {
-    MIST_SILVER("Mist Silver", 0xFFB0B3BA, 0xFFE0E2E6),
-    WARM_AMBER("Warm Amber", 0xFFD49B6A, 0xFFF5C7A1),
-    ARCTIC_CYAN("Arctic Cyan", 0xFF00E5FF, 0xFF80F2FF),
-    ELECTRIC_VIOLET("Electric Violet", 0xFF9B59B6, 0xFFD2B4DE),
-    EMERALD_MINT("Emerald Mint", 0xFF2ECC71, 0xFF82E0AA),
+    OBSIDIAN_SILVER("Obsidian Silver", 0xFFB0B3BA, 0xFFE0E2E6),
+    SUPERNOVA_GOLD("Supernova Gold", 0xFFD49B6A, 0xFFF5C7A1),
+    NEON_CYAN("Neon Cyan", 0xFF00E5FF, 0xFF80F2FF),
+    AURORA_MINT("Aurora Mint", 0xFF2ECC71, 0xFF82E0AA),
+    STARLIGHT_VIOLET("Starlight Violet", 0xFF9B59B6, 0xFFD2B4DE),
     CHAMPAGNE_GOLD("Champagne Gold", 0xFFC5A866, 0xFFEAD5A0)
 }
 
@@ -195,10 +198,17 @@ fun LauncherSettingsScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF0C0D11))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) { /* Consume touch events to prevent click-through to home screen below */ }
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    down.consume()
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        event.changes.forEach { it.consume() }
+                        if (event.changes.none { it.pressed }) break
+                    }
+                }
+            }
             .statusBarsPadding()
             .navigationBarsPadding()
     ) {
@@ -502,6 +512,26 @@ fun LauncherSettingsScreen(
                                                             )
                                                         )
                                                 )
+                                            }
+
+                                            // Glowing Live Video badge for video wallpaper themes
+                                            if (theme.liveVideoFileName != null) {
+                                                Surface(
+                                                    color = Color(0xDD0C0D11),
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(theme.accentLightHex).copy(alpha = 0.7f)),
+                                                    modifier = Modifier
+                                                        .align(Alignment.TopStart)
+                                                        .padding(6.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "🎬 Live Video",
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color(theme.accentLightHex),
+                                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                                    )
+                                                }
                                             }
 
                                             // Accent indicator chip in top-right corner

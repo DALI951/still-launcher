@@ -96,6 +96,13 @@ fun LiveSandboxPreview(
                     .fillMaxSize()
                     .background(Color.Black.copy(alpha = settings.scrimOpacityPercent / 100f))
             )
+        } else if (settings.liveWallpaperEnabled && settings.wallpaperTheme.liveVideoFileName != null) {
+            // Live Video Wallpaper in miniature phone preview
+            LiveVideoWallpaperView(
+                videoAssetFileName = settings.wallpaperTheme.liveVideoFileName!!,
+                scrimAlpha = settings.scrimOpacityPercent / 100f,
+                modifier = Modifier.fillMaxSize()
+            )
         } else if (assetBitmap != null) {
             Image(
                 bitmap = assetBitmap.asImageBitmap(),
@@ -136,8 +143,8 @@ fun LiveSandboxPreview(
             }
         }
 
-        // Live Ambient Motion Layer in mini-phone preview
-        if (settings.liveWallpaperEnabled && settings.wallpaperTheme != WallpaperTheme.SYSTEM_WALLPAPER) {
+        // Live Ambient Motion Layer in mini-phone preview (only if not a live video)
+        if (settings.liveWallpaperEnabled && settings.wallpaperTheme != WallpaperTheme.SYSTEM_WALLPAPER && settings.wallpaperTheme.liveVideoFileName == null) {
             LiveAmbientWallpaper(
                 settings = settings,
                 modifier = Modifier.fillMaxSize()
@@ -312,30 +319,19 @@ private fun MockAppRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        // Icon rendering matching IconStyle
+        // UNIFIED_THEMED and THEMED_MONOCHROME are strictly bare glyphs with no container plate or border.
+        // Only THEMED_DUOTONE draws an enclosing shape plate when iconShape != BARE.
+        val hasPlate = settings.iconShape != IconShape.BARE && settings.iconStyle == IconStyle.THEMED_DUOTONE
+
         Box(
             modifier = Modifier
                 .size(miniIconSize)
                 .then(
-                    if (settings.iconShape != IconShape.BARE) {
+                    if (hasPlate) {
                         Modifier
                             .clip(miniIconShape)
-                            .background(
-                                when (settings.iconStyle) {
-                                    IconStyle.UNIFIED_THEMED -> themeAccent.copy(alpha = 0.22f)
-                                    IconStyle.THEMED_MONOCHROME -> themeAccent.copy(alpha = 0.16f)
-                                    IconStyle.THEMED_DUOTONE -> themeAccent.copy(alpha = 0.38f)
-                                    IconStyle.MINIMAL_DOTS -> Color.Transparent
-                                    IconStyle.ORIGINAL -> Color(0x33FFFFFF)
-                                }
-                            )
-                            .then(
-                                if (settings.iconStyle == IconStyle.UNIFIED_THEMED) {
-                                    Modifier.border(0.75.dp, themeAccentLight.copy(alpha = 0.35f), miniIconShape)
-                                } else if (settings.iconStyle == IconStyle.THEMED_DUOTONE) {
-                                    Modifier.border(0.75.dp, Color.White.copy(alpha = 0.40f), miniIconShape)
-                                } else Modifier
-                            )
+                            .background(themeAccent.copy(alpha = 0.38f))
+                            .border(0.75.dp, Color.White.copy(alpha = 0.40f), miniIconShape)
                     } else Modifier
                 ),
             contentAlignment = Alignment.Center

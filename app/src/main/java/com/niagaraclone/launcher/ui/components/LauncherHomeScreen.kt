@@ -257,6 +257,13 @@ fun LauncherHomeScreen(
                     .fillMaxSize()
                     .background(Color.Black.copy(alpha = settings.scrimOpacityPercent / 100f))
             )
+        } else if (settings.liveWallpaperEnabled && settings.wallpaperTheme.liveVideoFileName != null) {
+            // Authentic Hardware Accelerated Live Video Wallpaper (TextureView + MediaPlayer loop)
+            LiveVideoWallpaperView(
+                videoAssetFileName = settings.wallpaperTheme.liveVideoFileName!!,
+                scrimAlpha = settings.scrimOpacityPercent / 100f,
+                modifier = Modifier.fillMaxSize()
+            )
         } else if (assetBitmap != null) {
             Image(
                 bitmap = assetBitmap.asImageBitmap(),
@@ -280,7 +287,8 @@ fun LauncherHomeScreen(
         }
 
         // Live Ambient Motion Layer (silky, cinematic particle & wave motion at 60/120fps)
-        if (settings.liveWallpaperEnabled && settings.wallpaperTheme != WallpaperTheme.SYSTEM_WALLPAPER) {
+        // Only run canvas LiveAmbientWallpaper if live wallpaper is enabled AND theme does not have a real video
+        if (settings.liveWallpaperEnabled && settings.wallpaperTheme != WallpaperTheme.SYSTEM_WALLPAPER && settings.wallpaperTheme.liveVideoFileName == null) {
             LiveAmbientWallpaper(
                 settings = settings,
                 modifier = Modifier.fillMaxSize()

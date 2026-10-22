@@ -140,23 +140,19 @@ fun ThemedAppIcon(
                 IconShape.BARE -> CircleShape
             }
 
-            val containerModifier = if (settings.iconShape != IconShape.BARE) {
+            // UNIFIED_THEMED and THEMED_MONOCHROME are strictly BARE glyphs with no container plate or border.
+            // Only THEMED_DUOTONE draws a background shape plate when iconShape != BARE.
+            val hasContainerPlate = settings.iconShape != IconShape.BARE && isDuotone
+
+            val containerModifier = if (hasContainerPlate) {
                 modifier
                     .background(
-                        color = when {
-                            isDuotone -> themeAccent.copy(alpha = 0.38f)
-                            isUnified -> themeAccent.copy(alpha = 0.22f)
-                            else -> themeAccent.copy(alpha = 0.16f)
-                        },
+                        color = themeAccent.copy(alpha = 0.38f),
                         shape = containerShape
                     )
                     .border(
                         width = 1.dp,
-                        color = when {
-                            isDuotone -> Color.White.copy(alpha = 0.45f)
-                            isUnified -> themeAccentLight.copy(alpha = 0.35f)
-                            else -> themeAccentLight.copy(alpha = 0.20f)
-                        },
+                        color = Color.White.copy(alpha = 0.45f),
                         shape = containerShape
                     )
                     .clip(containerShape)
