@@ -214,10 +214,18 @@ fun DailyMindfulUsageSheet(
                                 ScreenTimeTracker.getInstance(context).openUsageAccessSettings(context)
                             },
                             shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4E8CFF)),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF4E8CFF),
+                                contentColor = Color.White
+                            ),
                             modifier = Modifier.height(38.dp)
                         ) {
-                            Text("Grant Permission", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                text = "Grant Permission",
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
                         }
                     }
                 }

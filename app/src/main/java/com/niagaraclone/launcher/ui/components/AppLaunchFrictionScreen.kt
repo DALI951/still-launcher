@@ -45,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -76,6 +77,7 @@ fun AppLaunchFrictionScreen(
 ) {
     val themeAccent = Color(settings.activeAccentHex)
     val themeAccentLight = Color(settings.activeAccentLightHex)
+    val buttonContentColor = if (themeAccent.luminance() > 0.45f) Color(0xFF121212) else Color.White
 
     var countdownSeconds by remember {
         mutableIntStateOf(settings.breathingDelaySeconds.coerceAtLeast(3))
@@ -171,7 +173,10 @@ fun AppLaunchFrictionScreen(
                         Button(
                             onClick = onCancel,
                             shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = themeAccent),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = themeAccent,
+                                contentColor = buttonContentColor
+                            ),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(50.dp)
@@ -179,7 +184,8 @@ fun AppLaunchFrictionScreen(
                             Text(
                                 text = "Return to Still",
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
+                                fontSize = 14.sp,
+                                color = buttonContentColor
                             )
                         }
                     }
@@ -277,7 +283,9 @@ fun AppLaunchFrictionScreen(
                                 shape = RoundedCornerShape(14.dp),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = themeAccent,
-                                    disabledContainerColor = Color(0x18FFFFFF)
+                                    contentColor = buttonContentColor,
+                                    disabledContainerColor = Color(0x18FFFFFF),
+                                    disabledContentColor = Color(0x66FFFFFF)
                                 ),
                                 modifier = Modifier
                                     .weight(1f)
@@ -287,7 +295,7 @@ fun AppLaunchFrictionScreen(
                                     text = if (canProceed) "Open App" else "Wait (${countdownSeconds}s)",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.sp,
-                                    color = if (canProceed) Color.White else Color(0x66FFFFFF)
+                                    color = if (canProceed) buttonContentColor else Color(0x88FFFFFF)
                                 )
                             }
                         }

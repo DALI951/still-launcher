@@ -187,11 +187,13 @@ fun MindfulAppTimerSheet(
                 Icon(
                     imageVector = Icons.Outlined.PlayArrow,
                     contentDescription = null,
+                    tint = Color(0xFF121212),
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Launch with $selectedMinutes min timer",
+                    color = Color(0xFF121212),
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp
                 )

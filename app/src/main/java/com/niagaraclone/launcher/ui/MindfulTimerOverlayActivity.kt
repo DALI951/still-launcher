@@ -207,6 +207,7 @@ fun MindfulTimerOverlayContent(
                 ) {
                     Text(
                         text = "Close App & Return to Still",
+                        color = Color(0xFF121212),
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp
                     )

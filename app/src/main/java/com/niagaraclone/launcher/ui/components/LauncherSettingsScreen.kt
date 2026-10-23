@@ -70,6 +70,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -287,6 +288,7 @@ private fun AppearanceSection(
     accent: Color,
     accentLight: Color
 ) {
+    val accentBtnContentColor = if (accent.luminance() > 0.45f) Color(0xFF121212) else Color.White
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -478,6 +480,7 @@ private fun FavoritesSection(
 ) {
     var searchAppRuleQuery by remember { mutableStateOf("") }
 
+    val accentBtnContentColor = if (accent.luminance() > 0.45f) Color(0xFF121212) else Color.White
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -618,6 +621,7 @@ private fun FocusSection(
     accentLight: Color
 ) {
     val context = LocalContext.current
+    val accentBtnContentColor = if (accent.luminance() > 0.45f) Color(0xFF121212) else Color.White
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -738,15 +742,19 @@ private fun FocusSection(
                             )
                         }
                         if (!canDrawOverlays) {
+                            val grantContentColor = if (accentLight.luminance() > 0.45f) Color(0xFF121212) else Color.White
                             Button(
                                 onClick = {
                                     com.niagaraclone.launcher.data.AppTimerManager.getInstance(context).openOverlaySettings(context)
                                 },
                                 shape = RoundedCornerShape(8.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = accentLight),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = accentLight,
+                                    contentColor = grantContentColor
+                                ),
                                 modifier = Modifier.height(34.dp)
                             ) {
-                                Text("Grant", fontSize = 11.sp)
+                                Text("Grant", color = grantContentColor, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
@@ -906,6 +914,7 @@ private fun YouTubeSection(
     onRequestDisableGate: () -> Unit,
     onOpenGateDirectly: () -> Unit
 ) {
+    val accentBtnContentColor = if (accent.luminance() > 0.45f) Color(0xFF121212) else Color.White
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -1009,6 +1018,7 @@ private fun UpdatesSection(
     accent: Color,
     accentLight: Color
 ) {
+    val accentBtnContentColor = if (accent.luminance() > 0.45f) Color(0xFF121212) else Color.White
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -1052,12 +1062,15 @@ private fun UpdatesSection(
                     Button(
                         onClick = { viewModel.checkForUpdates(force = true) },
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = accent),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = accent,
+                            contentColor = accentBtnContentColor
+                        ),
                         modifier = Modifier.fillMaxWidth().height(48.dp)
                     ) {
-                        Icon(Icons.Outlined.SystemUpdate, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Outlined.SystemUpdate, contentDescription = null, tint = accentBtnContentColor, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Check for Updates Now", fontWeight = FontWeight.SemiBold)
+                        Text("Check for Updates Now", color = accentBtnContentColor, fontWeight = FontWeight.SemiBold)
                     }
                 }
 
@@ -1110,12 +1123,15 @@ private fun UpdatesSection(
                             Button(
                                 onClick = { viewModel.startUpdateDownload(updateState.releaseInfo) },
                                 shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = accent),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = accent,
+                                    contentColor = accentBtnContentColor
+                                ),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Icon(Icons.Outlined.CloudDownload, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Outlined.CloudDownload, contentDescription = null, tint = accentBtnContentColor, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("Download and Install Update", fontWeight = FontWeight.Bold)
+                                Text("Download and Install Update", color = accentBtnContentColor, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -1142,10 +1158,13 @@ private fun UpdatesSection(
                     Button(
                         onClick = { viewModel.installPendingUpdate() },
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2ECC71)),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF2ECC71),
+                            contentColor = Color.White
+                        ),
                         modifier = Modifier.fillMaxWidth().height(48.dp)
                     ) {
-                        Text("Install Downloaded APK Now", fontWeight = FontWeight.Bold)
+                        Text("Install Downloaded APK Now", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
 
@@ -1176,6 +1195,7 @@ private fun PrivacySection(
     accent: Color,
     accentLight: Color
 ) {
+    val accentBtnContentColor = if (accent.luminance() > 0.45f) Color(0xFF121212) else Color.White
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -1259,6 +1279,7 @@ private fun AboutSection(
 ) {
     val context = LocalContext.current
 
+    val accentBtnContentColor = if (accent.luminance() > 0.45f) Color(0xFF121212) else Color.White
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()

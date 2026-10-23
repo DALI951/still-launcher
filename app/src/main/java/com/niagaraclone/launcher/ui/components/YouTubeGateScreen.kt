@@ -72,6 +72,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
@@ -110,6 +111,7 @@ fun YouTubeGateScreen(
     val focusManager = LocalFocusManager.current
     val themeAccent = Color(settings.activeAccentHex)
     val themeAccentLight = Color(settings.activeAccentLightHex)
+    val accentContentColor = if (themeAccent.luminance() > 0.45f) Color(0xFF121212) else Color.White
 
     var urlInput by remember { mutableStateOf("") }
     var activeVideoId by remember { mutableStateOf<String?>(initialVideoId) }
@@ -369,7 +371,10 @@ fun YouTubeGateScreen(
                             Button(
                                 onClick = { attemptOpenVideo(urlInput) },
                                 shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = themeAccent),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = themeAccent,
+                                    contentColor = accentContentColor
+                                ),
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(48.dp)
@@ -377,13 +382,13 @@ fun YouTubeGateScreen(
                                 Icon(
                                     imageVector = Icons.Outlined.PlayArrow,
                                     contentDescription = null,
-                                    tint = Color.White,
+                                    tint = accentContentColor,
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = "Open Video",
-                                    color = Color.White,
+                                    color = accentContentColor,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.sp
                                 )
@@ -620,7 +625,12 @@ fun YouTubeGateScreen(
                                     ),
                                     modifier = Modifier.height(36.dp)
                                 ) {
-                                    Text("Open in External Player", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        text = "Open in External Player",
+                                        color = Color(0xFF121212),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
                             }
                         }
@@ -683,12 +693,15 @@ fun YouTubeGateScreen(
                         Button(
                             onClick = onDismissRequest,
                             shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = themeAccent),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = themeAccent,
+                                contentColor = accentContentColor
+                            ),
                             modifier = Modifier.weight(1f)
                         ) {
                             Text(
                                 text = "Return to Still",
-                                color = Color.White,
+                                color = accentContentColor,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp
                             )
