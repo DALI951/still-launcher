@@ -20,6 +20,10 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Required on Android 12+ for PackageInstaller USER_ACTION_NOT_REQUIRED self-updates -->
+    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
+    <!-- Required on Android 14+ for the time-is-up full-screen alert -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- Mindful Usage Timer & System Overlay Permissions -->
