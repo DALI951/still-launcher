@@ -2,6 +2,8 @@ package com.niagaraclone.launcher.ui.components
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
+import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -9,7 +11,11 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import com.niagaraclone.launcher.services.StillAccessibilityService
+import kotlin.math.abs
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -71,7 +77,22 @@ fun LauncherHomeScreen(
     val bgColor = Color(settings.themeMode.bgHex)
     val textSecondaryColor = Color(settings.themeMode.textSecondaryHex)
 
-    var totalDragY by remember { mutableFloatStateOf(0f) }
+    var lastTapTime by remember { androidx.compose.runtime.mutableLongStateOf(0L) }
+
+    val handleDoubleTap: () -> Unit = {
+        if (settings.doubleTapToLock) {
+            if (StillAccessibilityService.isEnabled()) {
+                StillAccessibilityService.lockScreen()
+            } else {
+                try {
+                    val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(intent)
+                } catch (_: Exception) {}
+            }
+        }
+    }
 
     // Handle back button on home screen
     BackHandler(
@@ -100,24 +121,46 @@ fun LauncherHomeScreen(
             .background(bgColor)
             .statusBarsPadding()
             .navigationBarsPadding()
-            .pointerInput(Unit) {
-                detectVerticalDragGestures(
-                    onDragStart = { totalDragY = 0f },
-                    onDragEnd = {
-                        if (totalDragY < -120f) {
-                            // Swiped UP -> open app search
-                            viewModel.setSearchActive(true)
-                        } else if (totalDragY > 120f) {
-                            // Swiped DOWN -> pull down notification shade
-                            expandStatusBar(context)
+            .pointerInput(settings.doubleTapToLock) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val startY = down.position.y
+                    var isDrag = false
+                    var totalY = 0f
+
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        if (!change.pressed) {
+                            if (!isDrag) {
+                                val now = System.currentTimeMillis()
+                                if (now - lastTapTime < 350L) {
+                                    handleDoubleTap()
+                                    lastTapTime = 0L
+                                } else {
+                                    lastTapTime = now
+                                }
+                            } else {
+                                if (totalY < -120f) {
+                                    // Swiped UP -> open app search
+                                    viewModel.setSearchActive(true)
+                                } else if (totalY > 120f) {
+                                    // Swiped DOWN -> pull down notification shade
+                                    expandStatusBar(context)
+                                }
+                            }
+                            break
                         }
-                        totalDragY = 0f
-                    },
-                    onVerticalDrag = { change, dragAmount ->
-                        change.consume()
-                        totalDragY += dragAmount
+                        val diffY = change.position.y - startY
+                        if (!isDrag && abs(diffY) > viewConfiguration.touchSlop) {
+                            isDrag = true
+                        }
+                        if (isDrag) {
+                            totalY += (change.position.y - change.previousPosition.y)
+                            change.consume()
+                        }
                     }
-                )
+                }
             }
     ) {
         Column(
@@ -264,11 +307,15 @@ fun LauncherHomeScreen(
             YouTubeGateScreen(
                 settings = settings,
                 historyList = uiState.youtubeHistory,
+                queueList = uiState.youtubeQueue,
                 initialVideoId = uiState.directPlayVideoId,
                 initialStartSeconds = uiState.directPlayStartSeconds,
                 onSaveHistory = { viewModel.saveYouTubeHistory(it) },
                 onRemoveHistoryItem = { viewModel.removeYouTubeHistoryItem(it) },
                 onClearHistory = { viewModel.clearYouTubeHistory() },
+                onAddToQueue = { viewModel.addToYouTubeQueue(it) },
+                onRemoveQueueItem = { viewModel.removeFromYouTubeQueue(it) },
+                onClearQueue = { viewModel.clearYouTubeQueue() },
                 onDismissRequest = { viewModel.setYouTubeGateActive(false) }
             )
         }
@@ -321,7 +368,9 @@ fun LauncherHomeScreen(
                 onOpenAppInfo = { viewModel.openAppDetails(it) },
                 onUninstall = { viewModel.requestUninstall(it) },
                 onSetLaunchRule = { targetApp, rule -> viewModel.setAppLaunchRule(targetApp, rule) },
-                onOpenYouTubeGate = { viewModel.setYouTubeGateActive(true) }
+                onOpenYouTubeGate = { viewModel.setYouTubeGateActive(true) },
+                onRenameApp = { targetApp, newName -> viewModel.setCustomAppName(targetApp, newName) },
+                accentColor = Color(settings.activeAccentHex)
             )
         }
     }

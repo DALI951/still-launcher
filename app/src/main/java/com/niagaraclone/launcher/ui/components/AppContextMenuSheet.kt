@@ -18,19 +18,26 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowDownward
 import androidx.compose.material.icons.outlined.ArrowUpward
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.SelfImprovement
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.outlined.StarOutline
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -41,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -65,10 +73,14 @@ fun AppContextMenuSheet(
     onOpenAppInfo: (AppInfo) -> Unit,
     onUninstall: (AppInfo) -> Unit,
     onSetLaunchRule: (AppInfo, AppLaunchRule) -> Unit = { _, _ -> },
-    onOpenYouTubeGate: () -> Unit = {}
+    onOpenYouTubeGate: () -> Unit = {},
+    onRenameApp: (AppInfo, String?) -> Unit = { _, _ -> },
+    accentColor: Color = Color(0xFF4E8CFF)
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var showRuleSelector by remember { mutableStateOf(false) }
+    var showRenameDialog by remember { mutableStateOf(false) }
+    var renameText by remember(app.uniqueKey, app.label) { mutableStateOf(app.label) }
 
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -206,6 +218,13 @@ fun AppContextMenuSheet(
                 }
             }
 
+            // Action: Rename Application
+            ActionItem(
+                icon = Icons.Outlined.Edit,
+                title = "Rename Application",
+                onClick = { showRenameDialog = true }
+            )
+
             // Action: System App Info
             ActionItem(
                 icon = Icons.Outlined.Info,
@@ -222,6 +241,80 @@ fun AppContextMenuSheet(
                 onClick = { onUninstall(app) }
             )
         }
+    }
+
+    if (showRenameDialog) {
+        val btnContentColor = if (accentColor.luminance() > 0.45f) Color(0xFF121212) else Color.White
+        AlertDialog(
+            onDismissRequest = { showRenameDialog = false },
+            containerColor = Color(0xFF1C1C1E),
+            title = {
+                Text(
+                    text = "Rename Application",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = TextPrimary
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Customize the display name for ${app.originalLabel} in Still.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = renameText,
+                        onValueChange = { renameText = it },
+                        singleLine = true,
+                        placeholder = { Text(app.originalLabel, color = TextMuted) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = accentColor,
+                            unfocusedBorderColor = Color(0x33FFFFFF),
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedContainerColor = Color(0x14FFFFFF),
+                            unfocusedContainerColor = Color(0x0AFFFFFF)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val trimmed = renameText.trim()
+                        onRenameApp(app, if (trimmed.isEmpty() || trimmed == app.originalLabel) null else trimmed)
+                        showRenameDialog = false
+                        onDismissRequest()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = accentColor,
+                        contentColor = btnContentColor
+                    )
+                ) {
+                    Text("Save", color = btnContentColor, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                Row {
+                    if (app.label != app.originalLabel) {
+                        TextButton(
+                            onClick = {
+                                onRenameApp(app, null)
+                                showRenameDialog = false
+                                onDismissRequest()
+                            }
+                        ) {
+                            Text("Reset", color = DangerRed)
+                        }
+                    }
+                    TextButton(onClick = { showRenameDialog = false }) {
+                        Text("Cancel", color = TextSecondary)
+                    }
+                }
+            }
+        )
     }
 }
 

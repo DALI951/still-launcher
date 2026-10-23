@@ -46,8 +46,42 @@ import com.niagaraclone.launcher.data.model.FocusProfile
 import com.niagaraclone.launcher.data.model.LauncherSettings
 import com.niagaraclone.launcher.data.model.SystemStatus
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+
+private val STOIC_QUOTES = listOf(
+    "You have power over your mind - not outside events. Realize this, and you will find strength." to "Marcus Aurelius",
+    "We suffer more often in imagination than in reality." to "Seneca",
+    "No man is free who is not master of himself." to "Epictetus",
+    "Nature does not hurry, yet everything is accomplished." to "Lao Tzu",
+    "Dwell on the beauty of life. Watch the stars, and see yourself running with them." to "Marcus Aurelius",
+    "He who is contented is rich." to "Lao Tzu",
+    "It is not that we have a short time to live, but that we waste a lot of it." to "Seneca",
+    "He who fears death will never do anything worthy of a man who is alive." to "Seneca",
+    "Silence is a source of great strength." to "Lao Tzu",
+    "Don't explain your philosophy. Embody it." to "Epictetus",
+    "Waste no more time arguing about what a good man should be. Be one." to "Marcus Aurelius",
+    "Caretake your minutes, and the hours will take care of themselves." to "Earl of Chesterfield",
+    "The soul becomes dyed with the color of its thoughts." to "Marcus Aurelius",
+    "Wealth consists not in having great possessions, but in having few wants." to "Epictetus",
+    "Simplicity, patience, compassion. These three are your greatest treasures." to "Lao Tzu",
+    "The happiness of your life depends upon the quality of your thoughts." to "Marcus Aurelius",
+    "Life is very short and anxious for those who forget the past, neglect the present, and fear the future." to "Seneca",
+    "It is quality rather than quantity that matters." to "Seneca",
+    "To be evenminded is the greatest virtue." to "Heraclitus",
+    "Peace comes from within. Do not seek it without." to "Buddha",
+    "The mind is everything. What you think you become." to "Buddha",
+    "Adopt the pace of nature: her secret is patience." to "Ralph Waldo Emerson",
+    "Live in each season as it passes; breathe the air, drink the drink, taste the fruit." to "Henry David Thoreau",
+    "Begin at once to live, and count each separate day as a separate life." to "Seneca",
+    "When you arise in the morning think of what a privilege it is to be alive, to think, to enjoy, to love." to "Marcus Aurelius",
+    "He has the most who is most content with the least." to "Diogenes",
+    "Nothing endures but change." to "Heraclitus",
+    "Small disciplines repeated with consistency every day lead to great achievements." to "John C. Maxwell",
+    "Knowing others is intelligence; knowing yourself is true wisdom." to "Lao Tzu",
+    "Very little is needed to make a happy life; it is all within yourself." to "Marcus Aurelius"
+)
 
 /**
  * Top Header for Still — Minimal Launcher.
@@ -87,6 +121,11 @@ fun AtAGlanceHeader(
         } catch (_: Exception) {
             systemStatus.dateText.ifEmpty { "Thursday, October 22" }
         }
+    }
+
+    val dailyQuote = remember(systemStatus.dateText) {
+        val dayOfYear = Calendar.getInstance().get(Calendar.DAY_OF_YEAR)
+        STOIC_QUOTES[Math.floorMod(dayOfYear, STOIC_QUOTES.size)]
     }
 
     Column(
@@ -181,7 +220,23 @@ fun AtAGlanceHeader(
             )
         }
 
-        // 5. Optional Small Battery Indicator & Active Focus Pill
+        // 5. Daily Mindful Philosophical Quote
+        if (settings.showDailyQuote) {
+            val (quoteText, quoteAuthor) = dailyQuote
+            Text(
+                text = "“$quoteText” — $quoteAuthor",
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Normal,
+                    lineHeight = 15.sp,
+                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                ),
+                color = textSecondaryColor.copy(alpha = 0.75f),
+                modifier = Modifier.padding(top = 5.dp)
+            )
+        }
+
+        // 6. Optional Small Battery Indicator & Active Focus Pill
         Row(
             modifier = Modifier.padding(top = 6.dp),
             verticalAlignment = Alignment.CenterVertically

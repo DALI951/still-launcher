@@ -82,6 +82,34 @@ data class YouTubeHistoryItem(
 }
 
 /**
+ * YouTube intentional watch later / learning queue entry (strictly local).
+ */
+data class YouTubeQueueItem(
+    val id: String,
+    val title: String,
+    val url: String,
+    val timestamp: Long = System.currentTimeMillis()
+) {
+    fun toJson(): JSONObject = JSONObject().apply {
+        put("id", id)
+        put("title", title)
+        put("url", url)
+        put("timestamp", timestamp)
+    }
+
+    companion object {
+        fun fromJson(json: JSONObject): YouTubeQueueItem {
+            return YouTubeQueueItem(
+                id = json.optString("id", ""),
+                title = json.optString("title", "Queued Video"),
+                url = json.optString("url", ""),
+                timestamp = json.optLong("timestamp", System.currentTimeMillis())
+            )
+        }
+    }
+}
+
+/**
  * Logged launch intention entry (persisted locally).
  */
 data class IntentionRecord(
@@ -120,6 +148,7 @@ data class LauncherSettings(
     val showBattery: Boolean = true,
     val clock24Hour: Boolean = false,
     val clockFontSizeSp: Int = 52,     // 36..68
+    val doubleTapToLock: Boolean = true,
 
     // 2. YouTube Gate
     val interceptYouTube: Boolean = true,
@@ -144,6 +173,7 @@ data class LauncherSettings(
     val dailyScreenTimeGoalMinutes: Int = 120,
     val showDailyIntention: Boolean = true,
     val dailyIntentionText: String = "",
+    val showDailyQuote: Boolean = true,
 
     // 6. Seamless Automatic Background Updates
     val autoUpdateEnabled: Boolean = true

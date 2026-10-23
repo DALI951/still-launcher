@@ -41,6 +41,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
+import androidx.compose.material.icons.automirrored.outlined.PlaylistAdd
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.History
@@ -87,6 +88,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.niagaraclone.launcher.R
 import com.niagaraclone.launcher.data.model.LauncherSettings
 import com.niagaraclone.launcher.data.model.YouTubeHistoryItem
+import com.niagaraclone.launcher.data.model.YouTubeQueueItem
 import com.niagaraclone.launcher.ui.theme.TextMuted
 import com.niagaraclone.launcher.ui.theme.TextPrimary
 import com.niagaraclone.launcher.ui.theme.TextSecondary
@@ -99,11 +101,15 @@ import com.niagaraclone.launcher.ui.theme.TextSecondary
 fun YouTubeGateScreen(
     settings: LauncherSettings,
     historyList: List<YouTubeHistoryItem> = emptyList(),
+    queueList: List<YouTubeQueueItem> = emptyList(),
     initialVideoId: String? = null,
     initialStartSeconds: Int = 0,
     onSaveHistory: (YouTubeHistoryItem) -> Unit = {},
     onRemoveHistoryItem: (String) -> Unit = {},
     onClearHistory: () -> Unit = {},
+    onAddToQueue: (YouTubeQueueItem) -> Unit = {},
+    onRemoveQueueItem: (String) -> Unit = {},
+    onClearQueue: () -> Unit = {},
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -340,10 +346,10 @@ fun YouTubeGateScreen(
 
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        // Action Buttons: Paste Link & Open Video
+                        // Action Buttons: Paste Link, Add to Queue & Open Video
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             OutlinedButton(
                                 onClick = pasteFromClipboard,
@@ -357,14 +363,73 @@ fun YouTubeGateScreen(
                                     imageVector = Icons.Outlined.ContentPaste,
                                     contentDescription = null,
                                     tint = themeAccentLight,
-                                    modifier = Modifier.size(18.dp)
+                                    modifier = Modifier.size(16.dp)
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = "Paste Link",
+                                    text = "Paste",
                                     color = Color.White,
                                     fontWeight = FontWeight.SemiBold,
-                                    fontSize = 13.sp
+                                    fontSize = 12.sp
+                                )
+                            }
+
+                            OutlinedButton(
+                                onClick = {
+                                    val cleanUrl = urlInput.trim()
+                                    if (cleanUrl.isNotBlank()) {
+                                        val parsed = parseYouTubeInput(cleanUrl)
+                                        when (parsed) {
+                                            is YouTubeParseResult.DirectVideo -> {
+                                                onAddToQueue(
+                                                    YouTubeQueueItem(
+                                                        id = parsed.videoId,
+                                                        title = "Video (${parsed.videoId})",
+                                                        url = cleanUrl
+                                                    )
+                                                )
+                                                urlInput = ""
+                                                errorMessage = null
+                                                focusManager.clearFocus()
+                                            }
+                                            is YouTubeParseResult.SearchQuery -> {
+                                                onAddToQueue(
+                                                    YouTubeQueueItem(
+                                                        id = "search_${System.currentTimeMillis()}",
+                                                        title = parsed.query,
+                                                        url = cleanUrl
+                                                    )
+                                                )
+                                                urlInput = ""
+                                                errorMessage = null
+                                                focusManager.clearFocus()
+                                            }
+                                            null -> {
+                                                errorMessage = "Please enter a valid YouTube link, ID, or video title"
+                                            }
+                                        }
+                                    } else {
+                                        errorMessage = "Enter or paste a video link first"
+                                    }
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x33FFFFFF)),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Outlined.PlaylistAdd,
+                                    contentDescription = null,
+                                    tint = themeAccentLight,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Queue",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 12.sp
                                 )
                             }
 
@@ -376,21 +441,21 @@ fun YouTubeGateScreen(
                                     contentColor = accentContentColor
                                 ),
                                 modifier = Modifier
-                                    .weight(1f)
+                                    .weight(1.2f)
                                     .height(48.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Outlined.PlayArrow,
                                     contentDescription = null,
                                     tint = accentContentColor,
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(18.dp)
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = "Open Video",
+                                    text = "Open",
                                     color = accentContentColor,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp
+                                    fontSize = 12.sp
                                 )
                             }
                         }
@@ -406,6 +471,93 @@ fun YouTubeGateScreen(
                                 color = TextSecondary,
                                 fontSize = 13.sp
                             )
+                        }
+                    }
+
+                    // Intentional YouTube Watch Later / Learning Queue
+                    if (queueList.isNotEmpty()) {
+                        item {
+                            Spacer(modifier = Modifier.height(24.dp))
+                            HorizontalDivider(color = Color(0x22FFFFFF))
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Learning Queue (${queueList.size})",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp
+                                    ),
+                                    color = themeAccentLight
+                                )
+                                TextButton(onClick = onClearQueue) {
+                                    Text(
+                                        text = "Clear Queue",
+                                        color = TextMuted,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+                        }
+
+                        items(queueList, key = { it.id }) { item ->
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0x14FFFFFF),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x1EFFFFFF)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .clickable { attemptOpenVideo(item.url.ifEmpty { "https://youtu.be/${item.id}" }) }
+                                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.PlayArrow,
+                                        contentDescription = "Watch",
+                                        tint = themeAccentLight,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = item.title,
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 13.sp
+                                            ),
+                                            color = TextPrimary,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = item.url,
+                                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                            color = TextSecondary,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { onRemoveQueueItem(item.id) },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "Remove from Queue",
+                                            tint = TextMuted,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
 

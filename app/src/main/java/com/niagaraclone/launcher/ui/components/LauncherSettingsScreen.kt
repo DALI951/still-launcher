@@ -429,6 +429,24 @@ private fun AppearanceSection(
                     accentLight = accentLight,
                     onCheckedChange = { viewModel.updateSettings { s -> s.copy(showBattery = it) } }
                 )
+                SettingToggleRow(
+                    label = "Daily Mindful Quote",
+                    checked = settings.showDailyQuote,
+                    textColor = textColor,
+                    textSecondaryColor = textSecondaryColor,
+                    accent = accent,
+                    accentLight = accentLight,
+                    onCheckedChange = { viewModel.updateSettings { s -> s.copy(showDailyQuote = it) } }
+                )
+                SettingToggleRow(
+                    label = "Double-Tap to Lock Screen",
+                    checked = settings.doubleTapToLock,
+                    textColor = textColor,
+                    textSecondaryColor = textSecondaryColor,
+                    accent = accent,
+                    accentLight = accentLight,
+                    onCheckedChange = { viewModel.updateSettings { s -> s.copy(doubleTapToLock = it) } }
+                )
             }
         }
 
@@ -939,6 +957,18 @@ private fun FocusSection(
                         accent = accent,
                         accentLight = accentLight,
                         onCheckedChange = { viewModel.updateSettings { s -> s.copy(showDailyIntention = it) } }
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    SettingToggleRow(
+                        label = "Show Daily Mindful Quote on Home",
+                        checked = settings.showDailyQuote,
+                        textColor = textColor,
+                        textSecondaryColor = textSecondaryColor,
+                        accent = accent,
+                        accentLight = accentLight,
+                        onCheckedChange = { viewModel.updateSettings { s -> s.copy(showDailyQuote = it) } }
                     )
 
                     Spacer(modifier = Modifier.height(14.dp))

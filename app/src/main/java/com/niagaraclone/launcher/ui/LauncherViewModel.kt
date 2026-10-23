@@ -24,6 +24,7 @@ import com.niagaraclone.launcher.data.model.IntentionRecord
 import com.niagaraclone.launcher.data.model.LauncherSettings
 import com.niagaraclone.launcher.data.model.SystemStatus
 import com.niagaraclone.launcher.data.model.YouTubeHistoryItem
+import com.niagaraclone.launcher.data.model.YouTubeQueueItem
 import com.niagaraclone.launcher.ui.components.FrictionType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -78,6 +79,7 @@ data class LauncherUiState(
     val activeTimerSession: ActiveTimerSession? = null,
     val selectedAppForMenu: AppInfo? = null,
     val youtubeHistory: List<YouTubeHistoryItem> = emptyList(),
+    val youtubeQueue: List<YouTubeQueueItem> = emptyList(),
     val recentIntentions: List<IntentionRecord> = emptyList(),
     val appDailyLimits: Map<String, Int> = emptyMap(),
     val updateState: UpdateUiState = UpdateUiState.Idle,
@@ -128,7 +130,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val isInitialSeeded: Boolean,
         val rules: Map<String, AppLaunchRule>,
         val dailyLimits: Map<String, Int>,
+        val customAppNames: Map<String, String>,
         val youtubeHistory: List<YouTubeHistoryItem>,
+        val youtubeQueue: List<YouTubeQueueItem>,
         val intentionsHistory: List<IntentionRecord>
     )
 
@@ -141,37 +145,52 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         Triple(installed, favs, hidden)
     }
 
-    private data class UserPrefsTuple(
+    private data class UserRulesTuple(
         val seeded: Boolean,
         val rules: Map<String, AppLaunchRule>,
         val dailyLimits: Map<String, Int>,
-        val history: List<YouTubeHistoryItem>,
-        val intentions: List<IntentionRecord>
+        val customNames: Map<String, String>
     )
 
-    private val userPrefsFlow = combine(
+    private val userRulesFlow = combine(
         preferencesRepository.isInitialSeededFlow,
         preferencesRepository.appLaunchRulesFlow,
         preferencesRepository.appDailyLimitsFlow,
+        preferencesRepository.customAppNamesFlow
+    ) { seeded, rules, dailyLimits, customNames ->
+        UserRulesTuple(seeded, rules, dailyLimits, customNames)
+    }
+
+    private data class UserMediaTuple(
+        val history: List<YouTubeHistoryItem>,
+        val queue: List<YouTubeQueueItem>,
+        val intentions: List<IntentionRecord>
+    )
+
+    private val userMediaFlow = combine(
         preferencesRepository.youtubeHistoryFlow,
+        preferencesRepository.youtubeQueueFlow,
         preferencesRepository.intentionsHistoryFlow
-    ) { seeded, rules, dailyLimits, history, intentions ->
-        UserPrefsTuple(seeded, rules, dailyLimits, history, intentions)
+    ) { history, queue, intentions ->
+        UserMediaTuple(history, queue, intentions)
     }
 
     private val appsPreferencesFlow = combine(
         appsDataFlow,
-        userPrefsFlow
-    ) { (installed, favs, hidden), userPrefs ->
+        userRulesFlow,
+        userMediaFlow
+    ) { (installed, favs, hidden), rulesData, mediaData ->
         AppsPreferencesState(
             installedApps = installed,
             favoriteKeys = favs,
             hiddenKeys = hidden,
-            isInitialSeeded = userPrefs.seeded,
-            rules = userPrefs.rules,
-            dailyLimits = userPrefs.dailyLimits,
-            youtubeHistory = userPrefs.history,
-            intentionsHistory = userPrefs.intentions
+            isInitialSeeded = rulesData.seeded,
+            rules = rulesData.rules,
+            dailyLimits = rulesData.dailyLimits,
+            customAppNames = rulesData.customNames,
+            youtubeHistory = mediaData.history,
+            youtubeQueue = mediaData.queue,
+            intentionsHistory = mediaData.intentions
         )
     }
 
@@ -215,14 +234,23 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             val isHidden = data.hiddenKeys.contains(app.uniqueKey)
             val rule = data.rules[app.uniqueKey] ?: AppLaunchRule.NORMAL
             val dailyLimit = data.dailyLimits[app.uniqueKey] ?: 30
+            val customName = data.customAppNames[app.uniqueKey]
+            val effectiveLabel = if (!customName.isNullOrBlank()) customName else app.originalLabel
+            val sectionLetter = AppInfo.computeSectionLetter(effectiveLabel)
             app.copy(
+                label = effectiveLabel,
+                sectionLetter = sectionLetter,
                 isFavorite = isFav,
                 favoriteRank = rank,
                 isHidden = isHidden,
                 launchRule = rule,
                 dailyLimitMinutes = dailyLimit
             )
-        }
+        }.sortedWith(
+            compareBy<AppInfo> {
+                if (it.sectionLetter == '#') 1 else 0
+            }.thenBy(String.CASE_INSENSITIVE_ORDER) { it.label }
+        )
 
         // Split into Visible and Hidden
         val visibleApps = allDecorated.filter { !it.isHidden }
@@ -272,6 +300,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             activeTimerSession = tuple.activeTimer,
             selectedAppForMenu = tuple.transient.selectedAppForMenu,
             youtubeHistory = data.youtubeHistory,
+            youtubeQueue = data.youtubeQueue,
             recentIntentions = data.intentionsHistory,
             appDailyLimits = data.dailyLimits,
             updateState = tuple.update,
@@ -694,6 +723,30 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun clearYouTubeHistory() {
         viewModelScope.launch {
             preferencesRepository.clearYouTubeHistory()
+        }
+    }
+
+    fun setCustomAppName(app: AppInfo, newName: String?) {
+        viewModelScope.launch {
+            preferencesRepository.setCustomAppName(app.uniqueKey, newName)
+        }
+    }
+
+    fun addToYouTubeQueue(item: YouTubeQueueItem) {
+        viewModelScope.launch {
+            preferencesRepository.addToQueue(item)
+        }
+    }
+
+    fun removeFromYouTubeQueue(id: String) {
+        viewModelScope.launch {
+            preferencesRepository.removeFromQueue(id)
+        }
+    }
+
+    fun clearYouTubeQueue() {
+        viewModelScope.launch {
+            preferencesRepository.clearQueue()
         }
     }
 

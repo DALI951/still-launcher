@@ -18,7 +18,8 @@ data class AppInfo(
     val isHidden: Boolean = false,
     val launchRule: AppLaunchRule = AppLaunchRule.NORMAL,
     val dailyLimitMinutes: Int = 30,
-    val uniqueKey: String = "${packageName}/${componentName}_${userHandle.hashCode()}"
+    val uniqueKey: String = "${packageName}/${componentName}_${userHandle.hashCode()}",
+    val originalLabel: String = label
 ) {
     val isYouTube: Boolean
         get() = packageName in listOf(

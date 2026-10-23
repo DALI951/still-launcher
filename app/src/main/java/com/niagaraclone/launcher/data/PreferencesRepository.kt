@@ -17,6 +17,7 @@ import com.niagaraclone.launcher.data.model.LauncherSettings
 import com.niagaraclone.launcher.data.model.StillAccent
 import com.niagaraclone.launcher.data.model.StillThemeMode
 import com.niagaraclone.launcher.data.model.YouTubeHistoryItem
+import com.niagaraclone.launcher.data.model.YouTubeQueueItem
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
@@ -44,11 +45,14 @@ class PreferencesRepository(private val context: Context) {
         val SETTING_SHOW_BATTERY = booleanPreferencesKey("setting_show_battery")
         val SETTING_CLOCK_24_HOUR = booleanPreferencesKey("setting_clock_24_hour")
         val SETTING_CLOCK_FONT_SIZE = intPreferencesKey("setting_clock_font_size")
+        val SETTING_DOUBLE_TAP_TO_LOCK = booleanPreferencesKey("setting_double_tap_to_lock")
+        val SETTING_SHOW_DAILY_QUOTE = booleanPreferencesKey("setting_show_daily_quote")
 
         // 2. YouTube Gate
         val SETTING_INTERCEPT_YOUTUBE = booleanPreferencesKey("setting_intercept_youtube")
         val SETTING_YOUTUBE_HISTORY_ENABLED = booleanPreferencesKey("setting_youtube_history_enabled")
         val SETTING_YOUTUBE_HISTORY_JSON = stringPreferencesKey("setting_youtube_history_json")
+        val SETTING_YOUTUBE_QUEUE_JSON = stringPreferencesKey("setting_youtube_queue_json")
 
         // 3. Focus & Restrictions
         val SETTING_ACTIVE_FOCUS_PROFILE = stringPreferencesKey("setting_active_focus_profile")
@@ -79,6 +83,8 @@ class PreferencesRepository(private val context: Context) {
         val APP_LAUNCH_RULES = stringPreferencesKey("app_launch_rules")
         // Serialized per-app daily usage limits: "pkg/comp=minutes:::pkg2/comp2=minutes"
         val APP_DAILY_LIMITS = stringPreferencesKey("app_daily_limits")
+        // Serialized custom app labels: "uniqueKey=customName:::uniqueKey2=customName2"
+        val CUSTOM_APP_NAMES = stringPreferencesKey("custom_app_names")
     }
 
     private val dataStore = context.launcherDataStore
@@ -138,6 +144,7 @@ class PreferencesRepository(private val context: Context) {
             val showBattery = prefs[PreferencesKeys.SETTING_SHOW_BATTERY] ?: true
             val clock24Hour = prefs[PreferencesKeys.SETTING_CLOCK_24_HOUR] ?: false
             val clockFontSize = prefs[PreferencesKeys.SETTING_CLOCK_FONT_SIZE] ?: 52
+            val doubleTapToLock = prefs[PreferencesKeys.SETTING_DOUBLE_TAP_TO_LOCK] ?: true
 
             val interceptYouTube = prefs[PreferencesKeys.SETTING_INTERCEPT_YOUTUBE] ?: true
             val youtubeHistoryEnabled = prefs[PreferencesKeys.SETTING_YOUTUBE_HISTORY_ENABLED] ?: true
@@ -160,6 +167,7 @@ class PreferencesRepository(private val context: Context) {
             val dailyScreenTimeGoal = prefs[PreferencesKeys.SETTING_DAILY_SCREEN_TIME_GOAL_MINUTES] ?: 120
             val showDailyIntention = prefs[PreferencesKeys.SETTING_SHOW_DAILY_INTENTION] ?: true
             val dailyIntentionText = prefs[PreferencesKeys.SETTING_DAILY_INTENTION_TEXT] ?: ""
+            val showDailyQuote = prefs[PreferencesKeys.SETTING_SHOW_DAILY_QUOTE] ?: true
             val autoUpdateEnabled = prefs[PreferencesKeys.SETTING_AUTO_UPDATE_ENABLED] ?: true
 
             LauncherSettings(
@@ -172,6 +180,7 @@ class PreferencesRepository(private val context: Context) {
                 showBattery = showBattery,
                 clock24Hour = clock24Hour,
                 clockFontSizeSp = clockFontSize,
+                doubleTapToLock = doubleTapToLock,
                 interceptYouTube = interceptYouTube,
                 youtubeHistoryEnabled = youtubeHistoryEnabled,
                 activeFocusProfile = focusProfile,
@@ -188,6 +197,7 @@ class PreferencesRepository(private val context: Context) {
                 dailyScreenTimeGoalMinutes = dailyScreenTimeGoal,
                 showDailyIntention = showDailyIntention,
                 dailyIntentionText = dailyIntentionText,
+                showDailyQuote = showDailyQuote,
                 autoUpdateEnabled = autoUpdateEnabled
             )
         }
@@ -243,6 +253,29 @@ class PreferencesRepository(private val context: Context) {
         }
 
     /**
+     * Flow of user-defined custom app labels: Map<AppKey, CustomLabel>
+     */
+    val customAppNamesFlow: Flow<Map<String, String>> = dataStore.data
+        .catch { exception ->
+            if (exception is IOException) emit(emptyPreferences()) else throw exception
+        }
+        .map { prefs ->
+            val raw = prefs[PreferencesKeys.CUSTOM_APP_NAMES] ?: ""
+            if (raw.isEmpty()) {
+                emptyMap()
+            } else {
+                val map = mutableMapOf<String, String>()
+                raw.split(":::").forEach { entry ->
+                    val parts = entry.split("=", limit = 2)
+                    if (parts.size == 2 && parts[0].isNotEmpty() && parts[1].isNotEmpty()) {
+                        map[parts[0]] = parts[1]
+                    }
+                }
+                map
+            }
+        }
+
+    /**
      * Flow of YouTube playback history (strictly local).
      */
     val youtubeHistoryFlow: Flow<List<YouTubeHistoryItem>> = dataStore.data
@@ -259,6 +292,31 @@ class PreferencesRepository(private val context: Context) {
                     val list = mutableListOf<YouTubeHistoryItem>()
                     for (i in 0 until array.length()) {
                         list.add(YouTubeHistoryItem.fromJson(array.getJSONObject(i)))
+                    }
+                    list
+                } catch (e: Exception) {
+                    emptyList()
+                }
+            }
+        }
+
+    /**
+     * Flow of YouTube intentional watch later / learning queue (strictly local).
+     */
+    val youtubeQueueFlow: Flow<List<YouTubeQueueItem>> = dataStore.data
+        .catch { exception ->
+            if (exception is IOException) emit(emptyPreferences()) else throw exception
+        }
+        .map { prefs ->
+            val jsonStr = prefs[PreferencesKeys.SETTING_YOUTUBE_QUEUE_JSON] ?: ""
+            if (jsonStr.isEmpty()) {
+                emptyList()
+            } else {
+                try {
+                    val array = JSONArray(jsonStr)
+                    val list = mutableListOf<YouTubeQueueItem>()
+                    for (i in 0 until array.length()) {
+                        list.add(YouTubeQueueItem.fromJson(array.getJSONObject(i)))
                     }
                     list
                 } catch (e: Exception) {
@@ -305,6 +363,7 @@ class PreferencesRepository(private val context: Context) {
             prefs[PreferencesKeys.SETTING_SHOW_BATTERY] = updated.showBattery
             prefs[PreferencesKeys.SETTING_CLOCK_24_HOUR] = updated.clock24Hour
             prefs[PreferencesKeys.SETTING_CLOCK_FONT_SIZE] = updated.clockFontSizeSp
+            prefs[PreferencesKeys.SETTING_DOUBLE_TAP_TO_LOCK] = updated.doubleTapToLock
             prefs[PreferencesKeys.SETTING_INTERCEPT_YOUTUBE] = updated.interceptYouTube
             prefs[PreferencesKeys.SETTING_YOUTUBE_HISTORY_ENABLED] = updated.youtubeHistoryEnabled
             prefs[PreferencesKeys.SETTING_ACTIVE_FOCUS_PROFILE] = updated.activeFocusProfile.name
@@ -323,6 +382,7 @@ class PreferencesRepository(private val context: Context) {
             prefs[PreferencesKeys.SETTING_DAILY_SCREEN_TIME_GOAL_MINUTES] = updated.dailyScreenTimeGoalMinutes
             prefs[PreferencesKeys.SETTING_SHOW_DAILY_INTENTION] = updated.showDailyIntention
             prefs[PreferencesKeys.SETTING_DAILY_INTENTION_TEXT] = updated.dailyIntentionText
+            prefs[PreferencesKeys.SETTING_SHOW_DAILY_QUOTE] = updated.showDailyQuote
             prefs[PreferencesKeys.SETTING_AUTO_UPDATE_ENABLED] = updated.autoUpdateEnabled
         }
     }
@@ -393,6 +453,29 @@ class PreferencesRepository(private val context: Context) {
             }
             val serialized = map.entries.joinToString(":::") { "${it.key}=${it.value}" }
             prefs[PreferencesKeys.APP_DAILY_LIMITS] = serialized
+        }
+    }
+
+    suspend fun setCustomAppName(uniqueKey: String, customName: String?) {
+        dataStore.edit { prefs ->
+            val raw = prefs[PreferencesKeys.CUSTOM_APP_NAMES] ?: ""
+            val map = mutableMapOf<String, String>()
+            if (raw.isNotEmpty()) {
+                raw.split(":::").forEach { entry ->
+                    val parts = entry.split("=", limit = 2)
+                    if (parts.size == 2 && parts[0].isNotEmpty() && parts[1].isNotEmpty()) {
+                        map[parts[0]] = parts[1]
+                    }
+                }
+            }
+            val trimmedName = customName?.trim()
+            if (trimmedName.isNullOrEmpty()) {
+                map.remove(uniqueKey)
+            } else {
+                map[uniqueKey] = trimmedName
+            }
+            val serialized = map.entries.joinToString(":::") { "${it.key}=${it.value}" }
+            prefs[PreferencesKeys.CUSTOM_APP_NAMES] = serialized
         }
     }
 
@@ -470,6 +553,52 @@ class PreferencesRepository(private val context: Context) {
     suspend fun clearYouTubeHistory() {
         dataStore.edit { prefs ->
             prefs[PreferencesKeys.SETTING_YOUTUBE_HISTORY_JSON] = ""
+        }
+    }
+
+    suspend fun addToQueue(item: YouTubeQueueItem) {
+        dataStore.edit { prefs ->
+            val jsonStr = prefs[PreferencesKeys.SETTING_YOUTUBE_QUEUE_JSON] ?: ""
+            val list = mutableListOf<YouTubeQueueItem>()
+            if (jsonStr.isNotEmpty()) {
+                try {
+                    val array = JSONArray(jsonStr)
+                    for (i in 0 until array.length()) {
+                        list.add(YouTubeQueueItem.fromJson(array.getJSONObject(i)))
+                    }
+                } catch (_: Exception) {}
+            }
+            list.removeAll { it.id == item.id }
+            list.add(0, item)
+            val trimmed = list.take(50)
+            val jsonArray = JSONArray()
+            trimmed.forEach { jsonArray.put(it.toJson()) }
+            prefs[PreferencesKeys.SETTING_YOUTUBE_QUEUE_JSON] = jsonArray.toString()
+        }
+    }
+
+    suspend fun removeFromQueue(id: String) {
+        dataStore.edit { prefs ->
+            val jsonStr = prefs[PreferencesKeys.SETTING_YOUTUBE_QUEUE_JSON] ?: ""
+            if (jsonStr.isNotEmpty()) {
+                try {
+                    val array = JSONArray(jsonStr)
+                    val list = mutableListOf<YouTubeQueueItem>()
+                    for (i in 0 until array.length()) {
+                        val item = YouTubeQueueItem.fromJson(array.getJSONObject(i))
+                        if (item.id != id) list.add(item)
+                    }
+                    val jsonArray = JSONArray()
+                    list.forEach { jsonArray.put(it.toJson()) }
+                    prefs[PreferencesKeys.SETTING_YOUTUBE_QUEUE_JSON] = jsonArray.toString()
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
+    suspend fun clearQueue() {
+        dataStore.edit { prefs ->
+            prefs[PreferencesKeys.SETTING_YOUTUBE_QUEUE_JSON] = ""
         }
     }
 

@@ -66,4 +66,5 @@
     <string name="proceed_with_intention">Open with Intention</string>
     <string name="focus_blocked_title">App Blocked by Focus Profile</string>
     <string name="focus_blocked_message">This app is currently restricted to keep your attention calm and undivided.</string>
+    <string name="accessibility_service_description">Enables double-tap on the home screen to turn off and lock the display.</string>
 </resources>
