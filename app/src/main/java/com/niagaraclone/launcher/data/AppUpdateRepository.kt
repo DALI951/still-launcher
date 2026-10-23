@@ -1,7 +1,9 @@
 package com.niagaraclone.launcher.data
 
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInstaller
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -218,6 +220,106 @@ class AppUpdateRepository(private val context: Context) {
             emit(UpdateDownloadState.Error("Download failed: ${e.localizedMessage}"))
         }
     }.flowOn(Dispatchers.IO)
+
+    /**
+     * Attempts silent package installation via PackageInstaller (Android 12+),
+     * or seamlessly falls back to standard installer view intent.
+     */
+    fun installApkSilentlyOrPrompt(apkFile: File): InstallResult {
+        if (!apkFile.exists() || apkFile.length() < 50_000L) {
+            return InstallResult.Error("APK file not found or corrupted.")
+        }
+
+        // Check Unknown Sources Permission
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val canInstall = context.packageManager.canRequestPackageInstalls()
+            if (!canInstall) {
+                try {
+                    val settingsIntent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                        data = Uri.parse("package:${context.packageName}")
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    context.startActivity(settingsIntent)
+                    return InstallResult.NeedsUnknownSourcesPermission
+                } catch (e: Exception) {
+                    Log.e("AppUpdateRepository", "Failed to open unknown sources settings", e)
+                }
+            }
+        }
+
+        // On Android 12+ (API 31+), attempt unattended silent install via PackageInstaller
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            try {
+                val packageInstaller = context.packageManager.packageInstaller
+                val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+                params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+
+                val sessionId = packageInstaller.createSession(params)
+                val session = packageInstaller.openSession(sessionId)
+
+                apkFile.inputStream().use { input ->
+                    session.openWrite("still_update", 0, apkFile.length()).use { output ->
+                        input.copyTo(output)
+                        session.fsync(output)
+                    }
+                }
+
+                val intent = Intent(context, UpdateInstallReceiver::class.java).apply {
+                    action = UpdateInstallReceiver.ACTION_INSTALL_STATUS
+                }
+                val pendingIntent = PendingIntent.getBroadcast(
+                    context,
+                    sessionId,
+                    intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+                )
+
+                session.commit(pendingIntent.intentSender)
+                session.close()
+                return InstallResult.Success
+            } catch (e: Exception) {
+                Log.w("AppUpdateRepository", "Silent install attempt failed, falling back to prompt", e)
+            }
+        }
+
+        // Fallback: Launch standard package installer intent
+        return installApk(apkFile)
+    }
+
+    /**
+     * Checks for updates, downloads the APK if newer, and triggers installation automatically.
+     */
+    suspend fun autoCheckAndInstall(): Result<Boolean> = withContext(Dispatchers.IO) {
+        try {
+            val releaseResult = checkLatestRelease()
+            val releaseInfo = releaseResult.getOrNull() ?: return@withContext Result.failure(
+                releaseResult.exceptionOrNull() ?: Exception("Unknown release check error")
+            )
+
+            if (!releaseInfo.isNewer) {
+                return@withContext Result.success(false)
+            }
+
+            Log.i("AppUpdateRepository", "New update detected (${releaseInfo.tagName}), auto-downloading...")
+
+            var completedApk: File? = null
+            downloadApk(releaseInfo).collect { state ->
+                if (state is UpdateDownloadState.Complete) {
+                    completedApk = state.apkFile
+                } else if (state is UpdateDownloadState.Error) {
+                    throw Exception(state.message)
+                }
+            }
+
+            val apk = completedApk ?: throw Exception("APK download did not complete")
+            Log.i("AppUpdateRepository", "Auto-download completed, triggering installation...")
+            installApkSilentlyOrPrompt(apk)
+            Result.success(true)
+        } catch (e: Exception) {
+            Log.e("AppUpdateRepository", "Auto update failed", e)
+            Result.failure(e)
+        }
+    }
 
     /**
      * Checks if the app can install unknown packages, prompts if missing,

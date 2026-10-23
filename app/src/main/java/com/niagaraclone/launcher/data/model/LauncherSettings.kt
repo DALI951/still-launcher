@@ -117,7 +117,10 @@ data class LauncherSettings(
     val showScreenTimeOnHome: Boolean = true,
     val dailyScreenTimeGoalMinutes: Int = 120,
     val showDailyIntention: Boolean = true,
-    val dailyIntentionText: String = ""
+    val dailyIntentionText: String = "",
+
+    // 6. Seamless Automatic Background Updates
+    val autoUpdateEnabled: Boolean = true
 ) {
     val activeAccentHex: Long get() = accent.hex
     val activeAccentLightHex: Long get() = accent.lightHex

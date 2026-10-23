@@ -68,6 +68,10 @@ class PreferencesRepository(private val context: Context) {
         val SETTING_SHOW_DAILY_INTENTION = booleanPreferencesKey("setting_show_daily_intention")
         val SETTING_DAILY_INTENTION_TEXT = stringPreferencesKey("setting_daily_intention_text")
 
+        // 6. Seamless Background Updates
+        val SETTING_AUTO_UPDATE_ENABLED = booleanPreferencesKey("setting_auto_update_enabled")
+        val LAST_AUTO_UPDATE_CHECK_MS = androidx.datastore.preferences.core.longPreferencesKey("last_auto_update_check_ms")
+
         // Serialized per-app launch rules: "pkg/comp=RULE_NAME:::pkg2/comp2=RULE_NAME"
         val APP_LAUNCH_RULES = stringPreferencesKey("app_launch_rules")
     }
@@ -150,6 +154,7 @@ class PreferencesRepository(private val context: Context) {
             val dailyScreenTimeGoal = prefs[PreferencesKeys.SETTING_DAILY_SCREEN_TIME_GOAL_MINUTES] ?: 120
             val showDailyIntention = prefs[PreferencesKeys.SETTING_SHOW_DAILY_INTENTION] ?: true
             val dailyIntentionText = prefs[PreferencesKeys.SETTING_DAILY_INTENTION_TEXT] ?: ""
+            val autoUpdateEnabled = prefs[PreferencesKeys.SETTING_AUTO_UPDATE_ENABLED] ?: true
 
             LauncherSettings(
                 themeMode = themeMode,
@@ -175,7 +180,8 @@ class PreferencesRepository(private val context: Context) {
                 showScreenTimeOnHome = showScreenTimeOnHome,
                 dailyScreenTimeGoalMinutes = dailyScreenTimeGoal,
                 showDailyIntention = showDailyIntention,
-                dailyIntentionText = dailyIntentionText
+                dailyIntentionText = dailyIntentionText,
+                autoUpdateEnabled = autoUpdateEnabled
             )
         }
 
@@ -259,7 +265,16 @@ class PreferencesRepository(private val context: Context) {
             prefs[PreferencesKeys.SETTING_DAILY_SCREEN_TIME_GOAL_MINUTES] = updated.dailyScreenTimeGoalMinutes
             prefs[PreferencesKeys.SETTING_SHOW_DAILY_INTENTION] = updated.showDailyIntention
             prefs[PreferencesKeys.SETTING_DAILY_INTENTION_TEXT] = updated.dailyIntentionText
+            prefs[PreferencesKeys.SETTING_AUTO_UPDATE_ENABLED] = updated.autoUpdateEnabled
         }
+    }
+
+    suspend fun getLastAutoUpdateCheckMs(): Long {
+        return dataStore.data.catch { emit(emptyPreferences()) }.first()[PreferencesKeys.LAST_AUTO_UPDATE_CHECK_MS] ?: 0L
+    }
+
+    suspend fun setLastAutoUpdateCheckMs(timestamp: Long) {
+        dataStore.edit { it[PreferencesKeys.LAST_AUTO_UPDATE_CHECK_MS] = timestamp }
     }
 
     suspend fun setAppLaunchRule(key: String, rule: AppLaunchRule) {

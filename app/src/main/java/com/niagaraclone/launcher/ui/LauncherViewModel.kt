@@ -23,11 +23,13 @@ import com.niagaraclone.launcher.data.model.LauncherSettings
 import com.niagaraclone.launcher.data.model.SystemStatus
 import com.niagaraclone.launcher.data.model.YouTubeHistoryItem
 import com.niagaraclone.launcher.ui.components.FrictionType
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -251,6 +253,26 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = LauncherUiState()
     )
+
+    init {
+        triggerAutoUpdateCheck()
+    }
+
+    fun triggerAutoUpdateCheck() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val settings = preferencesRepository.settingsFlow.first()
+            if (!settings.autoUpdateEnabled) return@launch
+
+            val lastCheck = preferencesRepository.getLastAutoUpdateCheckMs()
+            val now = System.currentTimeMillis()
+            // Check at most once every 6 hours
+            if (now - lastCheck < 6 * 3600 * 1000L && lastCheck > 0L) {
+                return@launch
+            }
+            preferencesRepository.setLastAutoUpdateCheckMs(now)
+            updateRepository.autoCheckAndInstall()
+        }
+    }
 
     private fun seedDefaultFavorites(installed: List<AppInfo>) {
         viewModelScope.launch {
@@ -631,6 +653,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     is UpdateDownloadState.Complete -> {
                         pendingInstallApk = dlState.apkFile
                         _updateState.value = UpdateUiState.ReadyToInstall(dlState.apkFile, releaseInfo)
+                        updateRepository.installApkSilentlyOrPrompt(dlState.apkFile)
                     }
                     is UpdateDownloadState.Error -> {
                         _updateState.value = UpdateUiState.Error(dlState.message)
@@ -642,7 +665,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun installPendingUpdate(): InstallResult {
         val apk = pendingInstallApk ?: return InstallResult.Error("No APK file found")
-        return updateRepository.installApk(apk)
+        return updateRepository.installApkSilentlyOrPrompt(apk)
     }
 
     fun refreshPermissionsState() {

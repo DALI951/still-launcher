@@ -227,7 +227,7 @@ fun LauncherSettingsScreen(
                             viewModel.setYouTubeGateActive(true)
                         }
                     )
-                    SettingsSection.UPDATES -> UpdatesSection(viewModel, uiState.updateState, textColor, textSecondaryColor, accent, accentLight)
+                    SettingsSection.UPDATES -> UpdatesSection(viewModel, uiState.updateState, settings, textColor, textSecondaryColor, accent, accentLight)
                     SettingsSection.PRIVACY -> PrivacySection(context, textColor, textSecondaryColor, accent, accentLight)
                     SettingsSection.ABOUT -> AboutSection(textColor, textSecondaryColor, accent, accentLight)
                 }
@@ -1013,6 +1013,7 @@ private fun YouTubeSection(
 private fun UpdatesSection(
     viewModel: LauncherViewModel,
     updateState: UpdateUiState,
+    settings: com.niagaraclone.launcher.data.model.LauncherSettings,
     textColor: Color,
     textSecondaryColor: Color,
     accent: Color,
@@ -1030,6 +1031,33 @@ private fun UpdatesSection(
                 title = "Application Updates",
                 description = "Checks GitHub Releases (DALI951/still-launcher) for verified APK updates"
             )
+        }
+
+        // Automatic Background Updates Toggle
+        item {
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = Color(0x0EFFFFFF),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    SettingToggleRow(
+                        label = "Automatic Background Updates",
+                        checked = settings.autoUpdateEnabled,
+                        textColor = textColor,
+                        textSecondaryColor = textSecondaryColor,
+                        accent = accent,
+                        accentLight = accentLight,
+                        onCheckedChange = { viewModel.updateSettings { s -> s.copy(autoUpdateEnabled = it) } }
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Automatically checks for releases, downloads in the background, and seamlessly applies updates without manual action.",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                        color = textSecondaryColor
+                    )
+                }
+            }
         }
 
         // Current Version Info

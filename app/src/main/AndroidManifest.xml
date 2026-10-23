@@ -30,6 +30,9 @@
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.EXPAND_STATUS_BAR" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
         android:allowBackup="true"
@@ -94,6 +97,24 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- Receivers for Mindful Timer & PackageInstaller Auto-Updater -->
+        <receiver
+            android:name=".data.AppTimerReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.niagaraclone.launcher.ACTION_TIMER_EXPIRED" />
+                <action android:name="com.niagaraclone.launcher.ACTION_FINISH_TIMER" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".data.UpdateInstallReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.niagaraclone.launcher.ACTION_INSTALL_STATUS" />
+            </intent-filter>
+        </receiver>
 
     </application>
 

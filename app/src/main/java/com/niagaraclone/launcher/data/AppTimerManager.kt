@@ -1,5 +1,6 @@
 package com.niagaraclone.launcher.data
 
+import android.app.AlarmManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -7,10 +8,12 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.provider.Settings
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.niagaraclone.launcher.MainActivity
@@ -31,6 +34,8 @@ data class ActiveTimerSession(
     val appLabel: String,
     val totalSeconds: Int,
     val remainingSeconds: Int,
+    val endTimeRealtime: Long,
+    val targetWallClockMs: Long,
     val startTimeMs: Long = System.currentTimeMillis()
 )
 
@@ -38,8 +43,10 @@ class AppTimerManager private constructor(private val context: Context) {
 
     private val notificationManager =
         context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    private val alarmManager =
+        context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
-    private val scope = CoroutineScope(Dispatchers.Main + Job())
+    private val scope = CoroutineScope(Dispatchers.Default + Job())
     private var countdownJob: Job? = null
 
     private val _activeSession = MutableStateFlow<ActiveTimerSession?>(null)
@@ -122,68 +129,101 @@ class AppTimerManager private constructor(private val context: Context) {
     fun startTimer(packageName: String, appLabel: String, minutes: Int) {
         stopTimer()
         val totalSeconds = (minutes * 60).coerceAtLeast(30)
+        val nowRealtime = SystemClock.elapsedRealtime()
+        val endTimeRealtime = nowRealtime + (totalSeconds * 1000L)
+        val targetWallClockMs = System.currentTimeMillis() + (totalSeconds * 1000L)
+
         val session = ActiveTimerSession(
             packageName = packageName,
             appLabel = appLabel,
             totalSeconds = totalSeconds,
-            remainingSeconds = totalSeconds
+            remainingSeconds = totalSeconds,
+            endTimeRealtime = endTimeRealtime,
+            targetWallClockMs = targetWallClockMs
         )
         _activeSession.value = session
         postProgressNotification(session)
+        scheduleAlarm(packageName, appLabel, totalSeconds, endTimeRealtime)
 
         countdownJob = scope.launch {
-            var currentRemaining = totalSeconds
-            while (currentRemaining > 0) {
+            while (true) {
                 delay(1000L)
-                currentRemaining--
-                val updated = session.copy(remainingSeconds = currentRemaining)
+                val remaining = ((endTimeRealtime - SystemClock.elapsedRealtime()) / 1000L).toInt().coerceAtLeast(0)
+                val updated = session.copy(remainingSeconds = remaining)
                 _activeSession.value = updated
 
-                // Update notification every 15 seconds or in final 10 seconds
-                if (currentRemaining % 15 == 0 || currentRemaining <= 10) {
-                    postProgressNotification(updated)
+                if (remaining <= 0) {
+                    onTimerExpired(updated)
+                    break
                 }
             }
-            onTimerExpired(session)
         }
     }
 
     fun extendTimer(additionalSeconds: Int = 120) {
         val current = _activeSession.value ?: return
-        val newRemaining = current.remainingSeconds + additionalSeconds
+        val additionalMs = additionalSeconds * 1000L
+        val newEndTimeRealtime = current.endTimeRealtime + additionalMs
+        val newTargetWallClockMs = current.targetWallClockMs + additionalMs
+        val newTotalSeconds = current.totalSeconds + additionalSeconds
+        val newRemaining = ((newEndTimeRealtime - SystemClock.elapsedRealtime()) / 1000L).toInt().coerceAtLeast(0)
+
         val updated = current.copy(
-            totalSeconds = current.totalSeconds + additionalSeconds,
-            remainingSeconds = newRemaining
+            totalSeconds = newTotalSeconds,
+            remainingSeconds = newRemaining,
+            endTimeRealtime = newEndTimeRealtime,
+            targetWallClockMs = newTargetWallClockMs
         )
         _activeSession.value = updated
         postProgressNotification(updated)
+        scheduleAlarm(updated.packageName, updated.appLabel, updated.totalSeconds, newEndTimeRealtime)
 
         countdownJob?.cancel()
         countdownJob = scope.launch {
-            var remaining = newRemaining
-            while (remaining > 0) {
+            while (true) {
                 delay(1000L)
-                remaining--
+                val remaining = ((newEndTimeRealtime - SystemClock.elapsedRealtime()) / 1000L).toInt().coerceAtLeast(0)
                 val s = updated.copy(remainingSeconds = remaining)
                 _activeSession.value = s
-                if (remaining % 15 == 0 || remaining <= 10) {
-                    postProgressNotification(s)
+
+                if (remaining <= 0) {
+                    onTimerExpired(s)
+                    break
                 }
             }
-            onTimerExpired(updated)
         }
     }
 
     fun stopTimer() {
         countdownJob?.cancel()
         countdownJob = null
+        cancelAlarm()
         _activeSession.value = null
         notificationManager.cancel(NOTIFICATION_ID)
         notificationManager.cancel(EXPIRED_NOTIFICATION_ID)
     }
 
+    fun onAlarmExpired(packageName: String, appLabel: String, totalSeconds: Int) {
+        val current = _activeSession.value
+        val session = if (current != null && current.packageName == packageName) {
+            current.copy(remainingSeconds = 0)
+        } else {
+            ActiveTimerSession(
+                packageName = packageName,
+                appLabel = appLabel,
+                totalSeconds = totalSeconds,
+                remainingSeconds = 0,
+                endTimeRealtime = SystemClock.elapsedRealtime(),
+                targetWallClockMs = System.currentTimeMillis()
+            )
+        }
+        onTimerExpired(session)
+    }
+
     private fun onTimerExpired(session: ActiveTimerSession) {
+        countdownJob?.cancel()
         countdownJob = null
+        cancelAlarm()
         _activeSession.value = null
         notificationManager.cancel(NOTIFICATION_ID)
 
@@ -201,10 +241,60 @@ class AppTimerManager private constructor(private val context: Context) {
             val intent = Intent(context, MindfulTimerOverlayActivity::class.java).apply {
                 putExtra(MindfulTimerOverlayActivity.EXTRA_PACKAGE_NAME, session.packageName)
                 putExtra(MindfulTimerOverlayActivity.EXTRA_APP_LABEL, session.appLabel)
-                putExtra(MindfulTimerOverlayActivity.EXTRA_INTENDED_MINUTES, session.totalSeconds / 60)
+                putExtra(MindfulTimerOverlayActivity.EXTRA_INTENDED_MINUTES, (session.totalSeconds / 60).coerceAtLeast(1))
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }
             context.startActivity(intent)
+        } catch (e: Exception) {
+            Log.e("AppTimerManager", "Failed to launch MindfulTimerOverlayActivity", e)
+        }
+    }
+
+    private fun scheduleAlarm(packageName: String, appLabel: String, totalSeconds: Int, triggerAtRealtimeMs: Long) {
+        try {
+            val alarmIntent = Intent(context, AppTimerReceiver::class.java).apply {
+                action = AppTimerReceiver.ACTION_TIMER_EXPIRED
+                putExtra(AppTimerReceiver.EXTRA_PACKAGE_NAME, packageName)
+                putExtra(AppTimerReceiver.EXTRA_APP_LABEL, appLabel)
+                putExtra(AppTimerReceiver.EXTRA_TOTAL_SECONDS, totalSeconds)
+            }
+            val pendingAlarm = PendingIntent.getBroadcast(
+                context,
+                ALARM_REQ_CODE,
+                alarmIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                    triggerAtRealtimeMs,
+                    pendingAlarm
+                )
+            } else {
+                alarmManager.setExact(
+                    AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                    triggerAtRealtimeMs,
+                    pendingAlarm
+                )
+            }
+        } catch (e: Exception) {
+            Log.e("AppTimerManager", "Failed to schedule exact alarm", e)
+        }
+    }
+
+    private fun cancelAlarm() {
+        try {
+            val alarmIntent = Intent(context, AppTimerReceiver::class.java).apply {
+                action = AppTimerReceiver.ACTION_TIMER_EXPIRED
+            }
+            val pendingAlarm = PendingIntent.getBroadcast(
+                context,
+                ALARM_REQ_CODE,
+                alarmIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            alarmManager.cancel(pendingAlarm)
         } catch (_: Exception) {}
     }
 
@@ -221,8 +311,8 @@ class AppTimerManager private constructor(private val context: Context) {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val finishIntent = Intent(ACTION_FINISH_TIMER).apply {
-            setPackage(context.packageName)
+        val finishIntent = Intent(context, AppTimerReceiver::class.java).apply {
+            action = AppTimerReceiver.ACTION_FINISH_TIMER
         }
         val finishPendingIntent = PendingIntent.getBroadcast(
             context,
@@ -231,15 +321,14 @@ class AppTimerManager private constructor(private val context: Context) {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val mins = session.remainingSeconds / 60
-        val secs = session.remainingSeconds % 60
-        val timeString = if (mins > 0) "${mins}m ${secs}s" else "${secs}s"
-
+        // Native Chronometer Countdown: Android SystemUI ticks down live second-by-second!
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle("Still • ${session.appLabel}")
-            .setContentText("Time remaining: $timeString (Goal: ${session.totalSeconds / 60}m)")
-            .setProgress(session.totalSeconds, session.totalSeconds - session.remainingSeconds, false)
+            .setContentText("Mindful timer in progress (${session.totalSeconds / 60}m intended)")
+            .setWhen(session.targetWallClockMs)
+            .setUsesChronometer(true)
+            .setChronometerCountDown(true)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(contentPendingIntent)
@@ -266,7 +355,7 @@ class AppTimerManager private constructor(private val context: Context) {
         val fullScreenIntent = Intent(context, MindfulTimerOverlayActivity::class.java).apply {
             putExtra(MindfulTimerOverlayActivity.EXTRA_PACKAGE_NAME, session.packageName)
             putExtra(MindfulTimerOverlayActivity.EXTRA_APP_LABEL, session.appLabel)
-            putExtra(MindfulTimerOverlayActivity.EXTRA_INTENDED_MINUTES, session.totalSeconds / 60)
+            putExtra(MindfulTimerOverlayActivity.EXTRA_INTENDED_MINUTES, (session.totalSeconds / 60).coerceAtLeast(1))
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         val fullScreenPendingIntent = PendingIntent.getActivity(
@@ -279,7 +368,7 @@ class AppTimerManager private constructor(private val context: Context) {
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle("Time is up: ${session.appLabel}")
-            .setContentText("You intended to use ${session.appLabel} for ${session.totalSeconds / 60}m. Tap to return to Still.")
+            .setContentText("You intended to use ${session.appLabel} for ${(session.totalSeconds / 60).coerceAtLeast(1)}m. Tap to return to Still.")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setVibrate(longArrayOf(0, 400, 200, 400, 200, 600))
@@ -308,7 +397,7 @@ class AppTimerManager private constructor(private val context: Context) {
                     )
                 } else {
                     @Suppress("DEPRECATION")
-                    vibrator?.vibrate(600)
+                    vibrator?.vibrate(longArrayOf(0, 400, 200, 400, 200, 600), -1)
                 }
             }
         } catch (_: Exception) {}
@@ -326,10 +415,10 @@ class AppTimerManager private constructor(private val context: Context) {
     }
 
     companion object {
-        private const val CHANNEL_ID = "still_mindful_timer"
-        private const val NOTIFICATION_ID = 2001
-        private const val EXPIRED_NOTIFICATION_ID = 2002
-        const val ACTION_FINISH_TIMER = "com.niagaraclone.launcher.ACTION_FINISH_TIMER"
+        const val CHANNEL_ID = "mindful_app_timer_channel"
+        const val NOTIFICATION_ID = 2001
+        const val EXPIRED_NOTIFICATION_ID = 2002
+        const val ALARM_REQ_CODE = 3001
 
         @Volatile
         private var instance: AppTimerManager? = null
