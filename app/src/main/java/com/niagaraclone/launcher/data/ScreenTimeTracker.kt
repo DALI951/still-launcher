@@ -175,6 +175,43 @@ class ScreenTimeTracker private constructor(private val context: Context) {
         }
     }
 
+    /**
+     * Retrieves today's total foreground usage minutes for a specific package name since local midnight.
+     * Returns -1 if usage access permission is not granted or if an error occurs.
+     */
+    fun getTodayUsageMinutes(packageName: String): Int {
+        if (!hasUsageStatsPermission()) {
+            return -1
+        }
+        return try {
+            val usageManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+            val calendar = Calendar.getInstance().apply {
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+            val startTime = calendar.timeInMillis
+            val endTime = System.currentTimeMillis()
+
+            val stats: List<UsageStats> = usageManager.queryUsageStats(
+                UsageStatsManager.INTERVAL_DAILY,
+                startTime,
+                endTime
+            ) ?: emptyList()
+
+            var totalMs = 0L
+            for (stat in stats) {
+                if (stat.packageName == packageName) {
+                    totalMs += stat.totalTimeInForeground
+                }
+            }
+            (totalMs / (60 * 1000L)).toInt()
+        } catch (_: Exception) {
+            -1
+        }
+    }
+
     companion object {
         @Volatile
         private var instance: ScreenTimeTracker? = null

@@ -9,6 +9,7 @@ import com.niagaraclone.launcher.data.ActiveTimerSession
 import com.niagaraclone.launcher.data.AppUpdateRepository
 import com.niagaraclone.launcher.data.DailyUsageSummary
 import com.niagaraclone.launcher.data.InstallResult
+import com.niagaraclone.launcher.data.LaunchPolicy
 import com.niagaraclone.launcher.data.LauncherPermissionsState
 import com.niagaraclone.launcher.data.PermissionsManager
 import com.niagaraclone.launcher.data.PreferencesRepository
@@ -19,6 +20,7 @@ import com.niagaraclone.launcher.data.UpdateDownloadState
 import com.niagaraclone.launcher.data.model.AppInfo
 import com.niagaraclone.launcher.data.model.AppLaunchRule
 import com.niagaraclone.launcher.data.model.FocusProfile
+import com.niagaraclone.launcher.data.model.IntentionRecord
 import com.niagaraclone.launcher.data.model.LauncherSettings
 import com.niagaraclone.launcher.data.model.SystemStatus
 import com.niagaraclone.launcher.data.model.YouTubeHistoryItem
@@ -76,6 +78,8 @@ data class LauncherUiState(
     val activeTimerSession: ActiveTimerSession? = null,
     val selectedAppForMenu: AppInfo? = null,
     val youtubeHistory: List<YouTubeHistoryItem> = emptyList(),
+    val recentIntentions: List<IntentionRecord> = emptyList(),
+    val appDailyLimits: Map<String, Int> = emptyMap(),
     val updateState: UpdateUiState = UpdateUiState.Idle,
     val permissionsState: LauncherPermissionsState = LauncherPermissionsState()
 )
@@ -123,7 +127,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val hiddenKeys: Set<String>,
         val isInitialSeeded: Boolean,
         val rules: Map<String, AppLaunchRule>,
-        val youtubeHistory: List<YouTubeHistoryItem>
+        val dailyLimits: Map<String, Int>,
+        val youtubeHistory: List<YouTubeHistoryItem>,
+        val intentionsHistory: List<IntentionRecord>
     )
 
     // Combine data layer flows in safe tuples
@@ -135,19 +141,38 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         Triple(installed, favs, hidden)
     }
 
+    private data class UserPrefsTuple(
+        val seeded: Boolean,
+        val rules: Map<String, AppLaunchRule>,
+        val dailyLimits: Map<String, Int>,
+        val history: List<YouTubeHistoryItem>,
+        val intentions: List<IntentionRecord>
+    )
+
     private val userPrefsFlow = combine(
         preferencesRepository.isInitialSeededFlow,
         preferencesRepository.appLaunchRulesFlow,
-        preferencesRepository.youtubeHistoryFlow
-    ) { seeded, rules, history ->
-        Triple(seeded, rules, history)
+        preferencesRepository.appDailyLimitsFlow,
+        preferencesRepository.youtubeHistoryFlow,
+        preferencesRepository.intentionsHistoryFlow
+    ) { seeded, rules, dailyLimits, history, intentions ->
+        UserPrefsTuple(seeded, rules, dailyLimits, history, intentions)
     }
 
     private val appsPreferencesFlow = combine(
         appsDataFlow,
         userPrefsFlow
-    ) { (installed, favs, hidden), (seeded, rules, history) ->
-        AppsPreferencesState(installed, favs, hidden, seeded, rules, history)
+    ) { (installed, favs, hidden), userPrefs ->
+        AppsPreferencesState(
+            installedApps = installed,
+            favoriteKeys = favs,
+            hiddenKeys = hidden,
+            isInitialSeeded = userPrefs.seeded,
+            rules = userPrefs.rules,
+            dailyLimits = userPrefs.dailyLimits,
+            youtubeHistory = userPrefs.history,
+            intentionsHistory = userPrefs.intentions
+        )
     }
 
     private data class TransientTuple(
@@ -189,11 +214,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             val rank = if (isFav) data.favoriteKeys.indexOf(app.uniqueKey) else -1
             val isHidden = data.hiddenKeys.contains(app.uniqueKey)
             val rule = data.rules[app.uniqueKey] ?: AppLaunchRule.NORMAL
+            val dailyLimit = data.dailyLimits[app.uniqueKey] ?: 30
             app.copy(
                 isFavorite = isFav,
                 favoriteRank = rank,
                 isHidden = isHidden,
-                launchRule = rule
+                launchRule = rule,
+                dailyLimitMinutes = dailyLimit
             )
         }
 
@@ -245,6 +272,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             activeTimerSession = tuple.activeTimer,
             selectedAppForMenu = tuple.transient.selectedAppForMenu,
             youtubeHistory = data.youtubeHistory,
+            recentIntentions = data.intentionsHistory,
+            appDailyLimits = data.dailyLimits,
             updateState = tuple.update,
             permissionsState = tuple.perms
         )
@@ -306,9 +335,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     /**
      * Centralized App Launch Interceptor.
-     * Enforces Intentional YouTube Gate, Active Focus Profiles, and Mindful Breathing Delays.
+     * Enforces Intentional YouTube Gate, Active Focus Profiles, Daily Limit Lockouts,
+     * Intention Prompts, and Mindful Breathing Delays.
      */
-    fun requestLaunchApp(app: AppInfo) {
+    fun requestLaunchApp(app: AppInfo, skipIntentionPrompt: Boolean = false) {
         val settings = uiState.value.settings
 
         // 1. YouTube Intentional Gate Interception
@@ -354,7 +384,33 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             return
         }
 
-        // 5. Mindful Breathing Pause Delay
+        // 5. Daily Usage Limit Lockout Check
+        if (app.launchRule == AppLaunchRule.LIMITED) {
+            val limitMinutes = uiState.value.appDailyLimits[app.uniqueKey] ?: app.dailyLimitMinutes
+            val usedMinutes = screenTimeTracker.getTodayUsageMinutes(app.packageName)
+            if (LaunchPolicy.isOverDailyLimit(usedMinutes, limitMinutes)) {
+                _transientState.update {
+                    it.copy(
+                        pendingFrictionApp = app,
+                        pendingFrictionType = FrictionType.DailyLimitReached(usedMinutes, limitMinutes)
+                    )
+                }
+                return
+            }
+        }
+
+        // 6. Mindful Intention Prompt Check (prompt when launching distracting apps: rule != NORMAL)
+        if (!skipIntentionPrompt && settings.intentionPromptEnabled && app.launchRule != AppLaunchRule.NORMAL) {
+            _transientState.update {
+                it.copy(
+                    pendingFrictionApp = app,
+                    pendingFrictionType = FrictionType.IntentionPrompt
+                )
+            }
+            return
+        }
+
+        // 7. Mindful Breathing Pause Delay
         if (app.launchRule == AppLaunchRule.DELAYED) {
             _transientState.update {
                 it.copy(
@@ -365,7 +421,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             return
         }
 
-        // 6. Active Cooldown Check
+        // 8. Active Cooldown Check
         if (timerManager.isAppInCooldown(app.packageName)) {
             val remainingSecs = timerManager.getRemainingCooldownSeconds(app.packageName)
             _transientState.update {
@@ -377,10 +433,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             return
         }
 
-        // 7. Mindful In-App Usage Timer selection prompt
+        // 9. Mindful In-App Usage Timer selection prompt
         if (settings.appUsageTimersEnabled && settings.askTimerOnAppLaunch && !app.isEssentialUtility) {
             _transientState.update {
                 it.copy(
+                    pendingFrictionApp = null,
+                    pendingFrictionType = null,
                     pendingTimerApp = app
                 )
             }
@@ -388,6 +446,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
 
         // Default: Immediate standard launch
+        _transientState.update {
+            it.copy(
+                pendingFrictionApp = null,
+                pendingFrictionType = null
+            )
+        }
         launchApp(app)
     }
 
@@ -401,7 +465,26 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun confirmIntentionLaunch(intentionText: String) {
+        val app = _transientState.value.pendingFrictionApp ?: return
+        viewModelScope.launch {
+            preferencesRepository.addIntentionRecord(
+                IntentionRecord(
+                    appLabel = app.label,
+                    text = intentionText,
+                    timestamp = System.currentTimeMillis()
+                )
+            )
+        }
+        requestLaunchApp(app, skipIntentionPrompt = true)
+    }
+
     fun confirmFrictionLaunch() {
+        val currentFriction = _transientState.value.pendingFrictionType
+        if (currentFriction is FrictionType.DailyLimitReached || currentFriction is FrictionType.BlockedByFocus) {
+            dismissFriction()
+            return
+        }
         val app = _transientState.value.pendingFrictionApp
         _transientState.update {
             it.copy(
@@ -581,6 +664,18 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun setAppLaunchRule(app: AppInfo, rule: AppLaunchRule) {
         viewModelScope.launch {
             preferencesRepository.setAppLaunchRule(app.uniqueKey, rule)
+        }
+    }
+
+    fun setAppDailyLimit(app: AppInfo, minutes: Int) {
+        viewModelScope.launch {
+            preferencesRepository.setAppDailyLimit(app.uniqueKey, minutes)
+        }
+    }
+
+    fun clearIntentionsHistory() {
+        viewModelScope.launch {
+            preferencesRepository.clearIntentionsHistory()
         }
     }
 

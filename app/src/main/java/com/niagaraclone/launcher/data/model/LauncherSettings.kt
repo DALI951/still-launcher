@@ -82,6 +82,31 @@ data class YouTubeHistoryItem(
 }
 
 /**
+ * Logged launch intention entry (persisted locally).
+ */
+data class IntentionRecord(
+    val appLabel: String,
+    val text: String,
+    val timestamp: Long = System.currentTimeMillis()
+) {
+    fun toJson(): JSONObject = JSONObject().apply {
+        put("appLabel", appLabel)
+        put("text", text)
+        put("timestamp", timestamp)
+    }
+
+    companion object {
+        fun fromJson(json: JSONObject): IntentionRecord {
+            return IntentionRecord(
+                appLabel = json.optString("appLabel", ""),
+                text = json.optString("text", ""),
+                timestamp = json.optLong("timestamp", System.currentTimeMillis())
+            )
+        }
+    }
+}
+
+/**
  * Comprehensive settings model for Still — Minimal Launcher.
  */
 data class LauncherSettings(
@@ -107,6 +132,7 @@ data class LauncherSettings(
     val studyEndHour: Int = 17,
     val sleepStartHour: Int = 22,
     val sleepEndHour: Int = 7,
+    val intentionPromptEnabled: Boolean = true,
 
     // 4. Mindful In-App Usage Timers (Minimalist Phone feature)
     val appUsageTimersEnabled: Boolean = true,

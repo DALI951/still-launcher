@@ -545,7 +545,7 @@ private fun FavoritesSection(
             Spacer(modifier = Modifier.height(8.dp))
             SettingHeader(
                 title = "Application Launch Rules",
-                description = "Set distraction rules: Normal, Delayed (breathing pause), Scheduled (focus hours), or Blocked."
+                description = "Set distraction rules: Normal, Delayed (breathing pause), Scheduled (focus hours), Limited (daily cap), or Blocked."
             )
             OutlinedTextField(
                 value = searchAppRuleQuery,
@@ -573,32 +573,74 @@ private fun FavoritesSection(
                 color = Color(0x0AFFFFFF),
                 modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(text = app.label, style = MaterialTheme.typography.bodyMedium, color = textColor)
-                        Text(text = app.launchRule.label, style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp), color = accentLight)
+                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(text = app.label, style = MaterialTheme.typography.bodyMedium, color = textColor)
+                            Text(
+                                text = if (app.launchRule == AppLaunchRule.LIMITED) {
+                                    "${app.launchRule.label} (${app.dailyLimitMinutes}m daily)"
+                                } else {
+                                    app.launchRule.label
+                                },
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                color = accentLight
+                            )
+                        }
+
+                        // Cycle rule button: NORMAL -> DELAYED -> SCHEDULED -> LIMITED -> BLOCKED -> NORMAL
+                        OutlinedButton(
+                            onClick = {
+                                val nextRule = when (app.launchRule) {
+                                    AppLaunchRule.NORMAL -> AppLaunchRule.DELAYED
+                                    AppLaunchRule.DELAYED -> AppLaunchRule.SCHEDULED
+                                    AppLaunchRule.SCHEDULED -> AppLaunchRule.LIMITED
+                                    AppLaunchRule.LIMITED -> AppLaunchRule.BLOCKED
+                                    AppLaunchRule.BLOCKED -> AppLaunchRule.NORMAL
+                                }
+                                viewModel.setAppLaunchRule(app, nextRule)
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, Color(0x33FFFFFF))
+                        ) {
+                            Text(text = "Change", fontSize = 11.sp, color = textColor)
+                        }
                     }
 
-                    // Cycle rule button
-                    OutlinedButton(
-                        onClick = {
-                            val nextRule = when (app.launchRule) {
-                                AppLaunchRule.NORMAL -> AppLaunchRule.DELAYED
-                                AppLaunchRule.DELAYED -> AppLaunchRule.SCHEDULED
-                                AppLaunchRule.SCHEDULED -> AppLaunchRule.BLOCKED
-                                AppLaunchRule.BLOCKED -> AppLaunchRule.NORMAL
-                                else -> AppLaunchRule.NORMAL
+                    // When app is LIMITED, show duration selector: 5/10/15/30/45/60 min
+                    if (app.launchRule == AppLaunchRule.LIMITED) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            listOf(5, 10, 15, 30, 45, 60).forEach { mins ->
+                                val isSel = app.dailyLimitMinutes == mins
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = if (isSel) accent.copy(alpha = 0.35f) else Color(0x10FFFFFF),
+                                    border = if (isSel) BorderStroke(1.dp, accentLight) else BorderStroke(1.dp, Color(0x18FFFFFF)),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { viewModel.setAppDailyLimit(app, mins) }
+                                ) {
+                                    Text(
+                                        text = "${mins}m",
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                                            fontSize = 11.sp
+                                        ),
+                                        color = if (isSel) textColor else textSecondaryColor,
+                                        modifier = Modifier.padding(vertical = 4.dp),
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                    )
+                                }
                             }
-                            viewModel.setAppLaunchRule(app, nextRule)
-                        },
-                        shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, Color(0x33FFFFFF))
-                    ) {
-                        Text(text = "Change", fontSize = 11.sp, color = textColor)
+                        }
                     }
                 }
             }
@@ -657,6 +699,109 @@ private fun FocusSection(
                                 ),
                                 color = if (isSelected) textColor else textSecondaryColor
                             )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Mindful Launch Intentions
+        item {
+            val uiState by viewModel.uiState.collectAsState()
+            val recentIntentions = uiState.recentIntentions.take(10)
+
+            SettingHeader(
+                title = "Mindful Launch Intentions",
+                description = "Pause and declare your purpose before opening distracting apps"
+            )
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0x0EFFFFFF),
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    SettingToggleRow(
+                        label = "Ask intention before launching distracting apps",
+                        checked = settings.intentionPromptEnabled,
+                        textColor = textColor,
+                        textSecondaryColor = textSecondaryColor,
+                        accent = accent,
+                        accentLight = accentLight,
+                        onCheckedChange = { viewModel.updateSettings { s -> s.copy(intentionPromptEnabled = it) } }
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Recent intentions",
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                            color = textColor
+                        )
+                        if (recentIntentions.isNotEmpty()) {
+                            Text(
+                                text = "Clear",
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                color = accentLight,
+                                modifier = Modifier
+                                    .clickable { viewModel.clearIntentionsHistory() }
+                                    .padding(4.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    if (recentIntentions.isEmpty()) {
+                        Text(
+                            text = "No logged intentions yet. When you open apps configured with Delayed, Limited, or Scheduled rules, your intentions will appear here.",
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                            color = textSecondaryColor
+                        )
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            recentIntentions.forEach { item ->
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color(0x10FFFFFF),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.padding(10.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = item.appLabel,
+                                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                                color = textColor
+                                            )
+                                            val timeStr = try {
+                                                java.text.SimpleDateFormat("MMM d, HH:mm", java.util.Locale.getDefault())
+                                                    .format(java.util.Date(item.timestamp))
+                                            } catch (_: Exception) { "" }
+                                            if (timeStr.isNotEmpty()) {
+                                                Text(
+                                                    text = timeStr,
+                                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                                    color = textSecondaryColor
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = "\"${item.text}\"",
+                                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                                            color = accentLight
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }

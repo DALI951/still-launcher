@@ -17,6 +17,7 @@ data class AppInfo(
     val favoriteRank: Int = -1,
     val isHidden: Boolean = false,
     val launchRule: AppLaunchRule = AppLaunchRule.NORMAL,
+    val dailyLimitMinutes: Int = 30,
     val uniqueKey: String = "${packageName}/${componentName}_${userHandle.hashCode()}"
 ) {
     val isYouTube: Boolean

@@ -280,6 +280,7 @@ fun LauncherHomeScreen(
                 settings = settings,
                 frictionType = uiState.pendingFrictionType!!,
                 onProceedLaunch = { viewModel.confirmFrictionLaunch() },
+                onConfirmIntention = { intention -> viewModel.confirmIntentionLaunch(intention) },
                 onCancel = { viewModel.dismissFriction() }
             )
         }

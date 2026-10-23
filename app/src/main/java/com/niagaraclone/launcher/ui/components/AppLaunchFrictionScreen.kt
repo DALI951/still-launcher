@@ -32,12 +32,15 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -60,11 +63,14 @@ import kotlinx.coroutines.delay
 sealed class FrictionType {
     data class BreathingDelay(val secondsRemaining: Int) : FrictionType()
     data class BlockedByFocus(val profile: FocusProfile) : FrictionType()
+    object IntentionPrompt : FrictionType()
+    data class DailyLimitReached(val usedMinutes: Int, val limitMinutes: Int) : FrictionType()
 }
 
 /**
  * Distraction-Resistant Launch Barrier for Still — Minimal Launcher.
- * Intervenes before opening addictive applications, offering mindful pause or focus enforcement.
+ * Intervenes before opening addictive applications, offering mindful pause, focus enforcement,
+ * daily usage limit lockout, or intentional purpose reflection.
  */
 @Composable
 fun AppLaunchFrictionScreen(
@@ -72,6 +78,7 @@ fun AppLaunchFrictionScreen(
     settings: LauncherSettings,
     frictionType: FrictionType,
     onProceedLaunch: () -> Unit,
+    onConfirmIntention: (String) -> Unit = {},
     onCancel: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -121,6 +128,176 @@ fun AppLaunchFrictionScreen(
             contentAlignment = Alignment.Center
         ) {
             when (frictionType) {
+                is FrictionType.DailyLimitReached -> {
+                    // Hard lockout when daily usage limit is reached
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(72.dp)
+                                .background(Color(0x22E74C3C), CircleShape)
+                                .border(1.dp, Color(0x66E74C3C), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Lock,
+                                contentDescription = null,
+                                tint = Color(0xFFF5B7B1),
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        Text(
+                            text = "Daily limit reached",
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 20.sp
+                            ),
+                            color = TextPrimary,
+                            textAlign = TextAlign.Center
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Text(
+                            text = "You've used ${app.label} for ${frictionType.usedMinutes} of ${frictionType.limitMinutes} minutes today. It unlocks at midnight.",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontSize = 13.sp,
+                                lineHeight = 19.sp
+                            ),
+                            color = TextSecondary,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(horizontal = 12.dp)
+                        )
+
+                        Spacer(modifier = Modifier.height(36.dp))
+
+                        Button(
+                            onClick = onCancel,
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = themeAccent,
+                                contentColor = buttonContentColor
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(50.dp)
+                        ) {
+                            Text(
+                                text = "Return to Still",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = buttonContentColor
+                            )
+                        }
+                    }
+                }
+
+                is FrictionType.IntentionPrompt -> {
+                    // Mindful Intention prompt before opening distracting app
+                    var intentionText by remember { mutableStateOf("") }
+                    val canContinue = intentionText.trim().length >= 3
+
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "What's your intention?",
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 22.sp
+                            ),
+                            color = themeAccentLight,
+                            textAlign = TextAlign.Center
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Text(
+                            text = "Opening ${app.label}",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
+                            color = TextSecondary,
+                            textAlign = TextAlign.Center
+                        )
+
+                        Spacer(modifier = Modifier.height(28.dp))
+
+                        OutlinedTextField(
+                            value = intentionText,
+                            onValueChange = { intentionText = it },
+                            placeholder = {
+                                Text("Why are you opening this?", color = Color(0x66FFFFFF), fontSize = 14.sp)
+                            },
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = themeAccentLight,
+                                unfocusedBorderColor = Color(0x33FFFFFF),
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                cursorColor = themeAccentLight
+                            )
+                        )
+
+                        Spacer(modifier = Modifier.height(28.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = onCancel,
+                                shape = RoundedCornerShape(14.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x33FFFFFF)),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp)
+                            ) {
+                                Text(
+                                    text = "Never mind",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 13.sp
+                                )
+                            }
+
+                            Button(
+                                onClick = {
+                                    if (canContinue) {
+                                        onConfirmIntention(intentionText.trim())
+                                    }
+                                },
+                                enabled = canContinue,
+                                shape = RoundedCornerShape(14.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = themeAccent,
+                                    contentColor = buttonContentColor,
+                                    disabledContainerColor = Color(0x18FFFFFF),
+                                    disabledContentColor = Color(0x66FFFFFF)
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp)
+                            ) {
+                                Text(
+                                    text = "Continue",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = if (canContinue) buttonContentColor else Color(0x88FFFFFF)
+                                )
+                            }
+                        }
+                    }
+                }
+
                 is FrictionType.BlockedByFocus -> {
                     // App is blocked by active Focus Profile
                     Column(

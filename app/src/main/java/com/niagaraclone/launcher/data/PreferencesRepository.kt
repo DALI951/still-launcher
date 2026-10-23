@@ -12,6 +12,7 @@ import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.niagaraclone.launcher.data.model.AppLaunchRule
 import com.niagaraclone.launcher.data.model.FocusProfile
+import com.niagaraclone.launcher.data.model.IntentionRecord
 import com.niagaraclone.launcher.data.model.LauncherSettings
 import com.niagaraclone.launcher.data.model.StillAccent
 import com.niagaraclone.launcher.data.model.StillThemeMode
@@ -56,6 +57,8 @@ class PreferencesRepository(private val context: Context) {
         val SETTING_STUDY_END_HOUR = intPreferencesKey("setting_study_end_hour")
         val SETTING_SLEEP_START_HOUR = intPreferencesKey("setting_sleep_start_hour")
         val SETTING_SLEEP_END_HOUR = intPreferencesKey("setting_sleep_end_hour")
+        val SETTING_INTENTION_PROMPT_ENABLED = booleanPreferencesKey("setting_intention_prompt_enabled")
+        val INTENTIONS_HISTORY_JSON = stringPreferencesKey("intentions_history_json")
 
         // 4. Mindful App Usage Timers
         val SETTING_APP_USAGE_TIMERS_ENABLED = booleanPreferencesKey("setting_app_usage_timers_enabled")
@@ -74,6 +77,8 @@ class PreferencesRepository(private val context: Context) {
 
         // Serialized per-app launch rules: "pkg/comp=RULE_NAME:::pkg2/comp2=RULE_NAME"
         val APP_LAUNCH_RULES = stringPreferencesKey("app_launch_rules")
+        // Serialized per-app daily usage limits: "pkg/comp=minutes:::pkg2/comp2=minutes"
+        val APP_DAILY_LIMITS = stringPreferencesKey("app_daily_limits")
     }
 
     private val dataStore = context.launcherDataStore
@@ -145,6 +150,7 @@ class PreferencesRepository(private val context: Context) {
             val studyEnd = prefs[PreferencesKeys.SETTING_STUDY_END_HOUR] ?: 17
             val sleepStart = prefs[PreferencesKeys.SETTING_SLEEP_START_HOUR] ?: 22
             val sleepEnd = prefs[PreferencesKeys.SETTING_SLEEP_END_HOUR] ?: 7
+            val intentionPromptEnabled = prefs[PreferencesKeys.SETTING_INTENTION_PROMPT_ENABLED] ?: true
 
             val appUsageTimersEnabled = prefs[PreferencesKeys.SETTING_APP_USAGE_TIMERS_ENABLED] ?: true
             val askTimerOnLaunch = prefs[PreferencesKeys.SETTING_ASK_TIMER_ON_LAUNCH] ?: true
@@ -174,6 +180,7 @@ class PreferencesRepository(private val context: Context) {
                 studyEndHour = studyEnd,
                 sleepStartHour = sleepStart,
                 sleepEndHour = sleepEnd,
+                intentionPromptEnabled = intentionPromptEnabled,
                 appUsageTimersEnabled = appUsageTimersEnabled,
                 askTimerOnAppLaunch = askTimerOnLaunch,
                 defaultTimerMinutes = defaultTimerMinutes,
@@ -211,6 +218,31 @@ class PreferencesRepository(private val context: Context) {
         }
 
     /**
+     * Flow of per-application daily usage limits in minutes: Map<AppKey, Int>
+     */
+    val appDailyLimitsFlow: Flow<Map<String, Int>> = dataStore.data
+        .catch { exception ->
+            if (exception is IOException) emit(emptyPreferences()) else throw exception
+        }
+        .map { prefs ->
+            val raw = prefs[PreferencesKeys.APP_DAILY_LIMITS] ?: ""
+            if (raw.isEmpty()) {
+                emptyMap()
+            } else {
+                val map = mutableMapOf<String, Int>()
+                raw.split(":::").forEach { entry ->
+                    val parts = entry.split("=")
+                    if (parts.size == 2) {
+                        parts[1].toIntOrNull()?.let { minutes ->
+                            if (minutes > 0) map[parts[0]] = minutes
+                        }
+                    }
+                }
+                map
+            }
+        }
+
+    /**
      * Flow of YouTube playback history (strictly local).
      */
     val youtubeHistoryFlow: Flow<List<YouTubeHistoryItem>> = dataStore.data
@@ -227,6 +259,31 @@ class PreferencesRepository(private val context: Context) {
                     val list = mutableListOf<YouTubeHistoryItem>()
                     for (i in 0 until array.length()) {
                         list.add(YouTubeHistoryItem.fromJson(array.getJSONObject(i)))
+                    }
+                    list
+                } catch (e: Exception) {
+                    emptyList()
+                }
+            }
+        }
+
+    /**
+     * Flow of launch intentions history (up to 50 items stored locally).
+     */
+    val intentionsHistoryFlow: Flow<List<IntentionRecord>> = dataStore.data
+        .catch { exception ->
+            if (exception is IOException) emit(emptyPreferences()) else throw exception
+        }
+        .map { prefs ->
+            val jsonStr = prefs[PreferencesKeys.INTENTIONS_HISTORY_JSON] ?: ""
+            if (jsonStr.isEmpty()) {
+                emptyList()
+            } else {
+                try {
+                    val array = JSONArray(jsonStr)
+                    val list = mutableListOf<IntentionRecord>()
+                    for (i in 0 until array.length()) {
+                        list.add(IntentionRecord.fromJson(array.getJSONObject(i)))
                     }
                     list
                 } catch (e: Exception) {
@@ -256,6 +313,7 @@ class PreferencesRepository(private val context: Context) {
             prefs[PreferencesKeys.SETTING_STUDY_END_HOUR] = updated.studyEndHour
             prefs[PreferencesKeys.SETTING_SLEEP_START_HOUR] = updated.sleepStartHour
             prefs[PreferencesKeys.SETTING_SLEEP_END_HOUR] = updated.sleepEndHour
+            prefs[PreferencesKeys.SETTING_INTENTION_PROMPT_ENABLED] = updated.intentionPromptEnabled
 
             prefs[PreferencesKeys.SETTING_APP_USAGE_TIMERS_ENABLED] = updated.appUsageTimersEnabled
             prefs[PreferencesKeys.SETTING_ASK_TIMER_ON_LAUNCH] = updated.askTimerOnAppLaunch
@@ -294,6 +352,73 @@ class PreferencesRepository(private val context: Context) {
             }
             val serialized = map.entries.joinToString(":::") { "${it.key}=${it.value}" }
             prefs[PreferencesKeys.APP_LAUNCH_RULES] = serialized
+
+            // If rule is LIMITED and no limit is configured yet, default to 30 minutes
+            if (rule == AppLaunchRule.LIMITED) {
+                val limitsRaw = prefs[PreferencesKeys.APP_DAILY_LIMITS] ?: ""
+                val limitsMap = mutableMapOf<String, Int>()
+                if (limitsRaw.isNotEmpty()) {
+                    limitsRaw.split(":::").forEach { entry ->
+                        val parts = entry.split("=")
+                        if (parts.size == 2) {
+                            parts[1].toIntOrNull()?.let { limitsMap[parts[0]] = it }
+                        }
+                    }
+                }
+                if (!limitsMap.containsKey(key)) {
+                    limitsMap[key] = 30
+                    val serializedLimits = limitsMap.entries.joinToString(":::") { "${it.key}=${it.value}" }
+                    prefs[PreferencesKeys.APP_DAILY_LIMITS] = serializedLimits
+                }
+            }
+        }
+    }
+
+    suspend fun setAppDailyLimit(key: String, minutes: Int) {
+        dataStore.edit { prefs ->
+            val raw = prefs[PreferencesKeys.APP_DAILY_LIMITS] ?: ""
+            val map = mutableMapOf<String, Int>()
+            if (raw.isNotEmpty()) {
+                raw.split(":::").forEach { entry ->
+                    val parts = entry.split("=")
+                    if (parts.size == 2) {
+                        parts[1].toIntOrNull()?.let { map[parts[0]] = it }
+                    }
+                }
+            }
+            if (minutes <= 0) {
+                map.remove(key)
+            } else {
+                map[key] = minutes
+            }
+            val serialized = map.entries.joinToString(":::") { "${it.key}=${it.value}" }
+            prefs[PreferencesKeys.APP_DAILY_LIMITS] = serialized
+        }
+    }
+
+    suspend fun addIntentionRecord(record: IntentionRecord) {
+        dataStore.edit { prefs ->
+            val jsonStr = prefs[PreferencesKeys.INTENTIONS_HISTORY_JSON] ?: ""
+            val list = mutableListOf<IntentionRecord>()
+            if (jsonStr.isNotEmpty()) {
+                try {
+                    val array = JSONArray(jsonStr)
+                    for (i in 0 until array.length()) {
+                        list.add(IntentionRecord.fromJson(array.getJSONObject(i)))
+                    }
+                } catch (_: Exception) {}
+            }
+            list.add(0, record)
+            val trimmed = list.take(50)
+            val jsonArray = JSONArray()
+            trimmed.forEach { jsonArray.put(it.toJson()) }
+            prefs[PreferencesKeys.INTENTIONS_HISTORY_JSON] = jsonArray.toString()
+        }
+    }
+
+    suspend fun clearIntentionsHistory() {
+        dataStore.edit { prefs ->
+            prefs[PreferencesKeys.INTENTIONS_HISTORY_JSON] = ""
         }
     }
 
