@@ -617,6 +617,7 @@ private fun FocusSection(
     accent: Color,
     accentLight: Color
 ) {
+    val context = LocalContext.current
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -653,6 +654,156 @@ private fun FocusSection(
                                 color = if (isSelected) textColor else textSecondaryColor
                             )
                         }
+                    }
+                }
+            }
+        }
+
+        // Mindful In-App Usage Timers
+        item {
+            SettingHeader(
+                title = "Mindful In-App Usage Timers",
+                description = "Set intentional time limits when launching distracting apps to eliminate mindless scrolling"
+            )
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0x0EFFFFFF),
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    SettingToggleRow(
+                        label = "Ask timer before launching apps",
+                        checked = settings.askTimerOnAppLaunch,
+                        textColor = textColor,
+                        textSecondaryColor = textSecondaryColor,
+                        accent = accent,
+                        accentLight = accentLight,
+                        onCheckedChange = { viewModel.updateSettings { s -> s.copy(askTimerOnAppLaunch = it) } }
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "Default Timer Duration: ${settings.defaultTimerMinutes}m",
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                        color = textColor
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf(1, 3, 5, 10, 15, 30).forEach { mins ->
+                            val isSel = settings.defaultTimerMinutes == mins
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (isSel) accent.copy(alpha = 0.35f) else Color(0x10FFFFFF),
+                                border = if (isSel) BorderStroke(1.dp, accentLight) else BorderStroke(1.dp, Color(0x18FFFFFF)),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { viewModel.updateSettings { s -> s.copy(defaultTimerMinutes = mins) } }
+                            ) {
+                                Text(
+                                    text = "${mins}m",
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                                        fontSize = 11.sp
+                                    ),
+                                    color = if (isSel) textColor else textSecondaryColor,
+                                    modifier = Modifier.padding(vertical = 6.dp),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    val canDrawOverlays = com.niagaraclone.launcher.data.AppTimerManager.getInstance(context).canDrawOverlays()
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                            Text(
+                                text = "Display Over Apps (Fullscreen Reminder)",
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                                color = textColor
+                            )
+                            Text(
+                                text = if (canDrawOverlays) "Permission granted. Mindful barrier appears when time is up." else "Required to pop up mindful barrier when timer expires.",
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                color = if (canDrawOverlays) accentLight else Color(0xFFFFA726)
+                            )
+                        }
+                        if (!canDrawOverlays) {
+                            Button(
+                                onClick = {
+                                    com.niagaraclone.launcher.data.AppTimerManager.getInstance(context).openOverlaySettings(context)
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = accentLight),
+                                modifier = Modifier.height(34.dp)
+                            ) {
+                                Text("Grant", fontSize = 11.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Daily Screen Time & Mindfulness Awareness
+        item {
+            SettingHeader(
+                title = "Daily Screen Time & Awareness",
+                description = "Minimalist Phone metrics to keep phone use conscious"
+            )
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0x0EFFFFFF),
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    SettingToggleRow(
+                        label = "Show Screen Time on Home",
+                        checked = settings.showScreenTimeOnHome,
+                        textColor = textColor,
+                        textSecondaryColor = textSecondaryColor,
+                        accent = accent,
+                        accentLight = accentLight,
+                        onCheckedChange = { viewModel.updateSettings { s -> s.copy(showScreenTimeOnHome = it) } }
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    SettingToggleRow(
+                        label = "Show Daily Intention on Home",
+                        checked = settings.showDailyIntention,
+                        textColor = textColor,
+                        textSecondaryColor = textSecondaryColor,
+                        accent = accent,
+                        accentLight = accentLight,
+                        onCheckedChange = { viewModel.updateSettings { s -> s.copy(showDailyIntention = it) } }
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Button(
+                        onClick = {
+                            try {
+                                val intent = Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                context.startActivity(intent)
+                            } catch (_: Exception) {}
+                        },
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0x22FFFFFF)),
+                        modifier = Modifier.fillMaxWidth().height(42.dp)
+                    ) {
+                        Text("Android Monochrome / Grayscale Settings", color = textColor, fontSize = 12.sp)
                     }
                 }
             }

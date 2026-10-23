@@ -114,12 +114,14 @@ fun YouTubeGateScreen(
     var urlInput by remember { mutableStateOf("") }
     var activeVideoId by remember { mutableStateOf<String?>(initialVideoId) }
     var activeStartSeconds by remember { mutableStateOf(initialStartSeconds) }
+    var hasPlaybackError by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(initialVideoId, initialStartSeconds) {
         if (!initialVideoId.isNullOrBlank()) {
             activeVideoId = initialVideoId
             activeStartSeconds = initialStartSeconds
+            hasPlaybackError = false
             errorMessage = null
         }
     }
@@ -128,6 +130,7 @@ fun YouTubeGateScreen(
     BackHandler {
         if (activeVideoId != null) {
             activeVideoId = null
+            hasPlaybackError = false
             errorMessage = null
         } else {
             onDismissRequest()
@@ -136,23 +139,41 @@ fun YouTubeGateScreen(
 
     val attemptOpenVideo: (String) -> Unit = { rawUrl ->
         val cleanUrl = rawUrl.trim()
-        val parsed = parseYouTubeUrl(cleanUrl)
-        if (parsed != null) {
-            errorMessage = null
-            activeVideoId = parsed.first
-            activeStartSeconds = parsed.second
-            if (settings.youtubeHistoryEnabled) {
-                onSaveHistory(
-                    YouTubeHistoryItem(
-                        id = parsed.first,
-                        title = "Video (${parsed.first})",
-                        url = cleanUrl
+        val parsed = parseYouTubeInput(cleanUrl)
+        when (parsed) {
+            is YouTubeParseResult.DirectVideo -> {
+                errorMessage = null
+                hasPlaybackError = false
+                activeVideoId = parsed.videoId
+                activeStartSeconds = parsed.startSeconds
+                if (settings.youtubeHistoryEnabled) {
+                    onSaveHistory(
+                        YouTubeHistoryItem(
+                            id = parsed.videoId,
+                            title = "Video (${parsed.videoId})",
+                            url = cleanUrl
+                        )
                     )
-                )
+                }
+                focusManager.clearFocus()
             }
-            focusManager.clearFocus()
-        } else {
-            errorMessage = "Please enter a valid YouTube video URL or ID"
+            is YouTubeParseResult.SearchQuery -> {
+                errorMessage = null
+                try {
+                    val searchIntent = Intent(
+                        Intent.ACTION_VIEW,
+                        Uri.parse("https://www.youtube.com/results?search_query=" + Uri.encode(parsed.query))
+                    ).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    context.startActivity(searchIntent)
+                } catch (_: Exception) {
+                    errorMessage = "Could not open search"
+                }
+            }
+            null -> {
+                errorMessage = "Please enter a valid YouTube link, ID, or video title"
+            }
         }
     }
 
@@ -270,7 +291,7 @@ fun YouTubeGateScreen(
 
                         Spacer(modifier = Modifier.height(28.dp))
 
-                        // Single URL Field
+                        // Single URL / Search Field
                         OutlinedTextField(
                             value = urlInput,
                             onValueChange = {
@@ -279,14 +300,15 @@ fun YouTubeGateScreen(
                             },
                             placeholder = {
                                 Text(
-                                    text = "https://youtube.com/watch?v=...",
+                                    text = "Paste link, ChatGPT text, or video title…",
                                     color = TextMuted,
-                                    fontSize = 14.sp
+                                    fontSize = 13.sp
                                 )
                             },
-                            singleLine = true,
+                            singleLine = false,
+                            maxLines = 3,
                             keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Uri,
+                                keyboardType = KeyboardType.Text,
                                 imeAction = ImeAction.Go
                             ),
                             keyboardActions = KeyboardActions(
@@ -551,11 +573,58 @@ fun YouTubeGateScreen(
                         videoId = activeVideoId!!,
                         startSeconds = activeStartSeconds,
                         onVideoEnded = {
-                            // Video finished: return to intentional gate rather than letting YouTube autoplay!
                             activeVideoId = null
+                        },
+                        onVideoError = {
+                            hasPlaybackError = true
                         },
                         modifier = Modifier.fillMaxSize()
                     )
+
+                    if (hasPlaybackError) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color(0xF0000000))
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "Playback Restricted by Creator",
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = Color.White
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "The owner disabled third-party embedding for this video.",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                    color = TextSecondary,
+                                    textAlign = TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Button(
+                                    onClick = {
+                                        val intent = Intent(
+                                            Intent.ACTION_VIEW,
+                                            Uri.parse("https://www.youtube.com/watch?v=$activeVideoId")
+                                        ).apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                        context.startActivity(intent)
+                                    },
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color.White,
+                                        contentColor = Color.Black
+                                    ),
+                                    modifier = Modifier.height(36.dp)
+                                ) {
+                                    Text("Open in External Player", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(20.dp))
@@ -632,8 +701,16 @@ fun YouTubeGateScreen(
 }
 
 /**
+ * Result of parsing YouTube input: either a direct video or a search query.
+ */
+sealed class YouTubeParseResult {
+    data class DirectVideo(val videoId: String, val startSeconds: Int = 0) : YouTubeParseResult()
+    data class SearchQuery(val query: String) : YouTubeParseResult()
+}
+
+/**
  * Dedicated Hardware-Accelerated WebView player with zero YouTube algorithmic recommendations.
- * Uses youtube-nocookie.com embedded iframe player API with JavaScript bridge to detect video completion.
+ * Uses official YouTube embedded player with Origin and base URL configuration.
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -641,6 +718,7 @@ private fun DedicatedYouTubeWebView(
     videoId: String,
     startSeconds: Int = 0,
     onVideoEnded: () -> Unit,
+    onVideoError: (Int) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val embedHtml = remember(videoId, startSeconds) {
@@ -648,11 +726,11 @@ private fun DedicatedYouTubeWebView(
         <!DOCTYPE html>
         <html>
         <head>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
             <style>
                 * { margin: 0; padding: 0; box-sizing: border-box; background: #000; }
-                html, body { width: 100%; height: 100%; overflow: hidden; }
-                #player { width: 100%; height: 100%; border: none; }
+                html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+                #player { width: 100%; height: 100%; position: absolute; top: 0; left: 0; border: none; }
             </style>
         </head>
         <body>
@@ -667,20 +745,29 @@ private fun DedicatedYouTubeWebView(
                 function onYouTubeIframeAPIReady() {
                     player = new YT.Player('player', {
                         videoId: '$videoId',
+                        width: '100%',
+                        height: '100%',
                         playerVars: {
                             'autoplay': 1,
+                            'playsinline': 1,
                             'rel': 0,
                             'modestbranding': 1,
-                            'playsinline': 1,
                             'iv_load_policy': 3,
                             'fs': 1,
-                            'enablejsapi': 1
+                            'enablejsapi': 1,
+                            'origin': 'https://www.youtube.com'
                             ${if (startSeconds > 0) ", 'start': $startSeconds" else ""}
                         },
                         events: {
-                            'onStateChange': onPlayerStateChange
+                            'onStateChange': onPlayerStateChange,
+                            'onError': onPlayerError,
+                            'onReady': onPlayerReady
                         }
                     });
+                }
+
+                function onPlayerReady(event) {
+                    try { event.target.playVideo(); } catch(e) {}
                 }
 
                 function onPlayerStateChange(event) {
@@ -689,6 +776,12 @@ private fun DedicatedYouTubeWebView(
                         if (window.AndroidBridge && window.AndroidBridge.onVideoEnded) {
                             window.AndroidBridge.onVideoEnded();
                         }
+                    }
+                }
+
+                function onPlayerError(event) {
+                    if (window.AndroidBridge && window.AndroidBridge.onVideoError) {
+                        window.AndroidBridge.onVideoError(event.data);
                     }
                 }
             </script>
@@ -708,210 +801,197 @@ private fun DedicatedYouTubeWebView(
                 settings.apply {
                     javaScriptEnabled = true
                     domStorageEnabled = true
+                    databaseEnabled = true
                     mediaPlaybackRequiresUserGesture = false
                     loadWithOverviewMode = true
                     useWideViewPort = true
                     cacheMode = WebSettings.LOAD_DEFAULT
+                    userAgentString = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
                 }
                 addJavascriptInterface(object {
                     @JavascriptInterface
                     fun onVideoEnded() {
                         post { onVideoEnded() }
                     }
+
+                    @JavascriptInterface
+                    fun onVideoError(errorCode: Int) {
+                        post { onVideoError(errorCode) }
+                    }
                 }, "AndroidBridge")
 
                 webChromeClient = WebChromeClient()
                 webViewClient = object : WebViewClient() {
                     override fun shouldOverrideUrlLoading(view: WebView?, request: android.webkit.WebResourceRequest?): Boolean {
-                        return true
+                        val url = request?.url?.toString() ?: ""
+                        if (request?.isForMainFrame == true) {
+                            if (!url.contains("youtube.com/embed") && !url.contains("youtube-nocookie.com/embed")) {
+                                return true
+                            }
+                        }
+                        return false
                     }
 
                     @Deprecated("Deprecated in Java")
                     override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
-                        return true
+                        return false
                     }
                 }
-                loadDataWithBaseURL("https://www.youtube-nocookie.com", embedHtml, "text/html", "UTF-8", null)
+                tag = "$videoId:$startSeconds"
+                loadDataWithBaseURL("https://www.youtube.com", embedHtml, "text/html", "UTF-8", null)
             }
         },
         update = { webView ->
-            webView.loadDataWithBaseURL("https://www.youtube-nocookie.com", embedHtml, "text/html", "UTF-8", null)
+            val expectedTag = "$videoId:$startSeconds"
+            if (webView.tag != expectedTag) {
+                webView.tag = expectedTag
+                webView.loadDataWithBaseURL("https://www.youtube.com", embedHtml, "text/html", "UTF-8", null)
+            }
         },
         modifier = modifier
     )
 }
 
 /**
- * Universal YouTube video URL parser and extractor.
- * Supports:
- * - Standard Watch: https://(www.|m.|music.)?youtube.com/watch?v=VIDEO_ID
- * - Shortened: https://youtu.be/VIDEO_ID
- * - Shorts: https://(www.|m.)?youtube.com/shorts/VIDEO_ID
- * - Live streams: https://(www.|m.)?youtube.com/live/VIDEO_ID
- * - Embed: https://(www.|m.)?youtube.com/embed/VIDEO_ID and youtube-nocookie.com/embed/VIDEO_ID
- * - Legacy paths: /v/VIDEO_ID, /e/VIDEO_ID, /watch/VIDEO_ID
- * - Attribution links: /attribution_link?u=/watch?v=VIDEO_ID
- * - YouTube Kids: youtubekids.com/watch?v=VIDEO_ID
- * - Schemeless URLs: youtu.be/VIDEO_ID, youtube.com/watch?v=VIDEO_ID, etc.
- * - Raw 11-character video ID
- * - Any text containing YouTube URLs (e.g. shared text from Android apps)
- * - Timestamps: t=, start=, time_continue= in query parameters or #t= in hash fragment
- *
- * Returns Pair(VideoID, StartTimestampInSeconds) or null if no valid ID found.
+ * Robust YouTube video URL parser and extractor.
+ * Supports ALL sources including:
+ * - ChatGPT markdown links: [Title](https://...)
+ * - Backtick code blocks: `https://...`
+ * - HTML embeds: <iframe src="https://...">
+ * - Redirect wrappers: Google, ChatGPT, Reddit, Facebook, Attribution
+ * - Shorts, Live streams, Music, Kids, Embeds, Schemeless
+ * - Trailing punctuation: ., ,, ), !, ?, *, _, quotes
+ * - Direct 11-char ID
+ * - Timestamps in query (t=, start=, time_continue=) or fragment (#t=)
  */
-fun parseYouTubeUrl(input: String?): Pair<String, Int>? {
+fun parseYouTubeInput(input: String?): YouTubeParseResult? {
     if (input.isNullOrBlank()) return null
-    val raw = input.trim()
+    var text = input.trim()
 
     // 1. Raw 11-character video ID directly
     val rawIdRegex = Regex("^[a-zA-Z0-9_-]{11}\$")
-    if (rawIdRegex.matches(raw)) {
-        return Pair(raw, 0)
+    if (rawIdRegex.matches(text)) {
+        return YouTubeParseResult.DirectVideo(text, 0)
     }
 
-    // 2. Extract URL candidate if embedded in surrounding text (e.g. Android Share Sheet message)
-    val urlFinderRegex = Regex("(?:https?://|www\\.|m\\.|music\\.|youtu\\.be/)[^\\s\"'<>\\]\\)]+")
-    val foundUrl = urlFinderRegex.find(raw)?.value ?: raw
+    // 2. Decode redirects (Google, ChatGPT, Reddit, Facebook, Attribution)
+    text = unwrapRedirects(text)
 
-    // 3. Normalize schemeless URLs
-    val normalizedUrl = when {
-        foundUrl.startsWith("http://", ignoreCase = true) || foundUrl.startsWith("https://", ignoreCase = true) -> foundUrl
-        foundUrl.startsWith("youtu.be/", ignoreCase = true) ||
-                foundUrl.startsWith("youtube.com/", ignoreCase = true) ||
-                foundUrl.startsWith("www.youtube.com/", ignoreCase = true) ||
-                foundUrl.startsWith("m.youtube.com/", ignoreCase = true) ||
-                foundUrl.startsWith("music.youtube.com/", ignoreCase = true) ||
-                foundUrl.startsWith("youtubekids.com/", ignoreCase = true) -> "https://$foundUrl"
-        else -> foundUrl
+    // 3. Extract URL from Markdown link [Title](https://...)
+    val markdownLinkMatch = Regex("\\[([^\\]]+)\\]\\((https?://[^\\s)]+)\\)").find(text)
+    if (markdownLinkMatch != null) {
+        text = markdownLinkMatch.groupValues[2]
     }
 
-    var extractedId: String? = null
-    var startSeconds = 0
+    // 4. Extract iframe embed src="https://..."
+    val iframeMatch = Regex("<iframe[^>]+src=[\"'](https?://[^\"']+)[\"']", RegexOption.IGNORE_CASE).find(text)
+    if (iframeMatch != null) {
+        text = iframeMatch.groupValues[1]
+    }
 
-    // 4. Try Android Uri parsing if available at runtime
+    // 5. Strip surrounding markdown/quotes/brackets/backticks from edges
+    text = text.trim('`', '"', '\'', '<', '>', '(', ')', '[', ']', '{', '}', '*', '_', '~')
+
+    // 6. Check if it's a YouTube search results URL
+    val searchMatch = Regex("(?:youtube\\.com/results\\?.*search_query=)([^&\\s\"'>#]+)").find(text)
+    if (searchMatch != null) {
+        val rawQuery = searchMatch.groupValues[1]
+        val decoded = try { java.net.URLDecoder.decode(rawQuery, "UTF-8") } catch (_: Exception) { rawQuery }
+        return YouTubeParseResult.SearchQuery(decoded)
+    }
+
+    // 7. Extract Start Timestamp (if any)
+    val timeMatch = Regex("[?&#](?:t|start|time_continue)=([0-9hms]+)").find(text)
+    val startSeconds = if (timeMatch != null) parseTimestampSeconds(timeMatch.groupValues[1]) else 0
+
+    // 8. Universal Video ID Extraction with lookahead to ignore trailing punctuation
+    val videoIdPatterns = listOf(
+        Regex("[?&]v=([a-zA-Z0-9_-]{11})(?=[^a-zA-Z0-9_-]|\$)"),
+        Regex("youtu\\.be/([a-zA-Z0-9_-]{11})(?=[^a-zA-Z0-9_-]|\$)"),
+        Regex("/(?:shorts|live|embed|v|e|w|watch)/([a-zA-Z0-9_-]{11})(?=[^a-zA-Z0-9_-]|\$)")
+    )
+
+    for (pattern in videoIdPatterns) {
+        val match = pattern.find(text)
+        if (match != null) {
+            val candidate = match.groupValues[1]
+            if (rawIdRegex.matches(candidate)) {
+                return YouTubeParseResult.DirectVideo(candidate, startSeconds)
+            }
+        }
+    }
+
+    // 9. Android Uri fallback
     try {
-        val uri = Uri.parse(normalizedUrl)
+        val norm = if (!text.startsWith("http://", ignoreCase = true) && !text.startsWith("https://", ignoreCase = true)) "https://$text" else text
+        val uri = Uri.parse(norm)
         if (uri != null) {
-            val tParam = uri.getQueryParameter("t")
-                ?: uri.getQueryParameter("start")
-                ?: uri.getQueryParameter("time_continue")
-            if (!tParam.isNullOrEmpty()) {
-                startSeconds = parseTimestampSeconds(tParam)
-            } else {
-                val fragment = uri.fragment
-                if (!fragment.isNullOrEmpty()) {
-                    val fragMatch = Regex("(?:t|start|time_continue)=(\\w+)").find(fragment)
-                    if (fragMatch != null) {
-                        startSeconds = parseTimestampSeconds(fragMatch.groupValues[1])
-                    }
+            val vParam = uri.getQueryParameter("v")
+            if (vParam != null && vParam.length >= 11) {
+                val candidate = vParam.substring(0, 11)
+                if (rawIdRegex.matches(candidate)) {
+                    return YouTubeParseResult.DirectVideo(candidate, startSeconds)
                 }
             }
-
-            val host = uri.host?.lowercase() ?: ""
-
-            // Handle YouTube Attribution link
-            if (uri.path?.contains("attribution_link") == true) {
-                val uParam = uri.getQueryParameter("u")
-                if (!uParam.isNullOrEmpty()) {
-                    val innerTarget = if (uParam.startsWith("/")) "https://www.youtube.com$uParam" else uParam
-                    val innerResult = parseYouTubeUrl(innerTarget)
-                    if (innerResult != null) {
-                        return Pair(innerResult.first, if (startSeconds > 0) startSeconds else innerResult.second)
-                    }
-                }
-            }
-
-            if (host == "youtu.be" || host.endsWith(".youtu.be")) {
-                val segment = uri.pathSegments.firstOrNull()
-                if (!segment.isNullOrEmpty() && segment.length >= 11) {
-                    val candidate = segment.substring(0, 11)
-                    if (rawIdRegex.matches(candidate)) extractedId = candidate
-                }
-            }
-
-            if (host.contains("youtube.com") || host.contains("youtubekids.com") || host.contains("youtube-nocookie.com")) {
-                val vParam = uri.getQueryParameter("v")
-                if (!vParam.isNullOrEmpty() && vParam.length >= 11) {
-                    val candidate = vParam.substring(0, 11)
-                    if (rawIdRegex.matches(candidate)) extractedId = candidate
-                }
-
-                if (extractedId == null) {
-                    val segments = uri.pathSegments
-                    val targetIndices = listOf("shorts", "live", "embed", "v", "e", "watch", "w")
-                    for (target in targetIndices) {
-                        val index = segments.indexOf(target)
-                        if (index != -1 && segments.size > index + 1) {
-                            val segCandidate = segments[index + 1]
-                            if (segCandidate.length >= 11) {
-                                val candidate = segCandidate.substring(0, 11)
-                                if (rawIdRegex.matches(candidate)) {
-                                    extractedId = candidate
-                                    break
-                                }
-                            }
+            val segments = uri.pathSegments
+            val targetIndices = listOf("shorts", "live", "embed", "v", "e", "watch", "w")
+            for (target in targetIndices) {
+                val idx = segments.indexOf(target)
+                if (idx != -1 && segments.size > idx + 1) {
+                    val seg = segments[idx + 1]
+                    if (seg.length >= 11) {
+                        val candidate = seg.substring(0, 11)
+                        if (rawIdRegex.matches(candidate)) {
+                            return YouTubeParseResult.DirectVideo(candidate, startSeconds)
                         }
                     }
                 }
             }
         }
-    } catch (_: Throwable) {
-        // Fallback gracefully to regex parsing below
+    } catch (_: Throwable) {}
+
+    // 10. If user typed plain text (e.g. video title from ChatGPT like "Huberman Lab Sleep"):
+    if (text.length in 2..120 && !text.contains("http://") && !text.contains("https://")) {
+        return YouTubeParseResult.SearchQuery(text)
     }
 
-    // 5. Fallback Regex parsing (handles any URI quirks, JVM unit testing, attribution links)
-    if (extractedId == null) {
-        // Handle attribution_link in raw string if not already handled
-        if (normalizedUrl.contains("attribution_link") && normalizedUrl.contains("u=")) {
-            try {
-                val uParamEncoded = Regex("[?&]u=([^&]+)").find(normalizedUrl)?.groupValues?.get(1)
-                if (uParamEncoded != null) {
-                    val decoded = java.net.URLDecoder.decode(uParamEncoded, "UTF-8")
-                    val innerTarget = if (decoded.startsWith("/")) "https://www.youtube.com$decoded" else decoded
-                    val innerResult = parseYouTubeUrl(innerTarget)
-                    if (innerResult != null) {
-                        return Pair(innerResult.first, if (startSeconds > 0) startSeconds else innerResult.second)
-                    }
-                }
-            } catch (_: Throwable) {}
-        }
+    return null
+}
 
-        val directRegexPatterns = listOf(
-            Regex("(?:[?&]v=)([a-zA-Z0-9_-]{11})"),
-            Regex("youtu\\.be/([a-zA-Z0-9_-]{11})"),
-            Regex("/(?:shorts|live|embed|v|e|w|watch)/([a-zA-Z0-9_-]{11})")
-        )
-        for (pattern in directRegexPatterns) {
-            val match = pattern.find(normalizedUrl)
-            if (match != null) {
-                extractedId = match.groupValues[1]
-                break
-            }
-        }
+fun parseYouTubeUrl(input: String?): Pair<String, Int>? {
+    val result = parseYouTubeInput(input)
+    return when (result) {
+        is YouTubeParseResult.DirectVideo -> Pair(result.videoId, result.startSeconds)
+        else -> null
     }
+}
 
-    // Fallback timestamp scan from URL string if not already extracted
-    if (startSeconds == 0) {
-        val timeRegex = Regex("[?&#](?:t|start|time_continue)=(\\w+)")
-        val timeMatch = timeRegex.find(normalizedUrl)
-        if (timeMatch != null) {
-            startSeconds = parseTimestampSeconds(timeMatch.groupValues[1])
-        }
+private fun unwrapRedirects(input: String): String {
+    var text = input
+    // Google redirect: q=https://...
+    val googleMatch = Regex("[?&]q=(https?%3A%2F%2F[^&]+|https?://[^&]+)").find(text)
+    if (googleMatch != null) {
+        val rawTarget = googleMatch.groupValues[1]
+        text = try { java.net.URLDecoder.decode(rawTarget, "UTF-8") } catch (_: Exception) { rawTarget }
     }
-
-    return extractedId?.let { Pair(it, startSeconds) }
+    // Generic redirect: url=https://... or u=https://... or redirect=https://...
+    val genericMatch = Regex("[?&](?:url|u|redirect|target)=(https?%3A%2F%2F[^&]+|https?://[^&]+|%2Fwatch[^&]+)").find(text)
+    if (genericMatch != null) {
+        val rawTarget = genericMatch.groupValues[1]
+        val decoded = try { java.net.URLDecoder.decode(rawTarget, "UTF-8") } catch (_: Exception) { rawTarget }
+        text = if (decoded.startsWith("/")) "https://www.youtube.com$decoded" else decoded
+    }
+    return text
 }
 
 fun parseTimestampSeconds(param: String): Int {
     val clean = param.trim().lowercase().removePrefix("t=").removePrefix("start=")
     if (clean.isEmpty()) return 0
     return try {
-        // Pure digits (e.g., 90 or 90s)
         val pureSecondsMatch = Regex("^(\\d+)s?\$").find(clean)
         if (pureSecondsMatch != null) {
             pureSecondsMatch.groupValues[1].toInt()
         } else {
-            // Formatted e.g. 1h20m30s or 2m15s or 45s
             var total = 0
             val hMatch = Regex("(\\d+)h").find(clean)
             if (hMatch != null) total += hMatch.groupValues[1].toInt() * 3600

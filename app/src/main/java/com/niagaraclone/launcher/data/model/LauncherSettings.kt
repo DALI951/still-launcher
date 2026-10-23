@@ -106,7 +106,18 @@ data class LauncherSettings(
     val studyStartHour: Int = 9,
     val studyEndHour: Int = 17,
     val sleepStartHour: Int = 22,
-    val sleepEndHour: Int = 7
+    val sleepEndHour: Int = 7,
+
+    // 4. Mindful In-App Usage Timers (Minimalist Phone feature)
+    val appUsageTimersEnabled: Boolean = true,
+    val askTimerOnAppLaunch: Boolean = true,
+    val defaultTimerMinutes: Int = 5,
+
+    // 5. Daily Mindfulness & Screen Time Awareness
+    val showScreenTimeOnHome: Boolean = true,
+    val dailyScreenTimeGoalMinutes: Int = 120,
+    val showDailyIntention: Boolean = true,
+    val dailyIntentionText: String = ""
 ) {
     val activeAccentHex: Long get() = accent.hex
     val activeAccentLightHex: Long get() = accent.lightHex

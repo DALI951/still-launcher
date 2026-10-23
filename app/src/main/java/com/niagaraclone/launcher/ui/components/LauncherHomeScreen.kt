@@ -1,5 +1,7 @@
 package com.niagaraclone.launcher.ui.components
 
+import android.annotation.SuppressLint
+import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -7,6 +9,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,9 +37,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -56,10 +65,13 @@ fun LauncherHomeScreen(
     viewModel: LauncherViewModel = viewModel(),
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
     val settings = uiState.settings
     val bgColor = Color(settings.themeMode.bgHex)
     val textSecondaryColor = Color(settings.themeMode.textSecondaryHex)
+
+    var totalDragY by remember { mutableFloatStateOf(0f) }
 
     // Handle back button on home screen
     BackHandler(
@@ -67,10 +79,14 @@ fun LauncherHomeScreen(
                 uiState.isSettingsSheetActive ||
                 uiState.isYouTubeGateActive ||
                 uiState.pendingFrictionApp != null ||
+                uiState.pendingTimerApp != null ||
+                uiState.isUsageSheetActive ||
                 uiState.selectedAppForMenu != null
     ) {
         when {
             uiState.isYouTubeGateActive -> viewModel.setYouTubeGateActive(false)
+            uiState.pendingTimerApp != null -> viewModel.dismissTimerSheet()
+            uiState.isUsageSheetActive -> viewModel.setUsageSheetActive(false)
             uiState.pendingFrictionApp != null -> viewModel.dismissFriction()
             uiState.selectedAppForMenu != null -> viewModel.closeAppContextMenu()
             uiState.isSettingsSheetActive -> viewModel.setSettingsSheetActive(false)
@@ -84,6 +100,25 @@ fun LauncherHomeScreen(
             .background(bgColor)
             .statusBarsPadding()
             .navigationBarsPadding()
+            .pointerInput(Unit) {
+                detectVerticalDragGestures(
+                    onDragStart = { totalDragY = 0f },
+                    onDragEnd = {
+                        if (totalDragY < -120f) {
+                            // Swiped UP -> open app search
+                            viewModel.setSearchActive(true)
+                        } else if (totalDragY > 120f) {
+                            // Swiped DOWN -> pull down notification shade
+                            expandStatusBar(context)
+                        }
+                        totalDragY = 0f
+                    },
+                    onVerticalDrag = { change, dragAmount ->
+                        change.consume()
+                        totalDragY += dragAmount
+                    }
+                )
+            }
     ) {
         Column(
             modifier = Modifier.fillMaxSize()
@@ -99,6 +134,9 @@ fun LauncherHomeScreen(
                 AtAGlanceHeader(
                     systemStatus = uiState.systemStatus,
                     settings = settings,
+                    dailyUsageSummary = uiState.dailyUsageSummary,
+                    onOpenUsageSheet = { viewModel.setUsageSheetActive(true) },
+                    onEditIntention = { viewModel.updateDailyIntention(it) },
                     modifier = Modifier.weight(1f)
                 )
 
@@ -139,7 +177,7 @@ fun LauncherHomeScreen(
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                text = "Tap the search bar below to choose applications.",
+                                text = "Tap the search bar below or swipe up to choose applications.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = textSecondaryColor.copy(alpha = 0.6f)
                             )
@@ -160,36 +198,37 @@ fun LauncherHomeScreen(
                 }
             }
 
-            // 3. Bottom Section: Clearly discoverable search trigger
+            // 3. Bottom Section: Minimalist Phone Discoverable Search Trigger
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 16.dp)
+                    .padding(horizontal = 24.dp, vertical = 18.dp)
             ) {
                 Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = Color(settings.themeMode.surfaceHex),
-                    border = BorderStroke(1.dp, Color(0x18FFFFFF)),
+                    shape = RoundedCornerShape(24.dp),
+                    color = Color(settings.themeMode.surfaceHex).copy(alpha = 0.7f),
+                    border = BorderStroke(1.dp, Color(0x1AFFFFFF)),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp)
+                        .height(46.dp)
                         .clickable { viewModel.setSearchActive(true) }
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 16.dp),
+                        modifier = Modifier.padding(horizontal = 18.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Search,
                             contentDescription = "Search",
-                            tint = textSecondaryColor,
-                            modifier = Modifier.size(18.dp)
+                            tint = textSecondaryColor.copy(alpha = 0.75f),
+                            modifier = Modifier.size(17.dp)
                         )
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            text = "Search apps...",
-                            color = textSecondaryColor,
-                            fontSize = 14.sp
+                            text = "Search apps…",
+                            color = textSecondaryColor.copy(alpha = 0.75f),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Normal
                         )
                     }
                 }
@@ -245,7 +284,31 @@ fun LauncherHomeScreen(
             )
         }
 
-        // 5. App Context Options Sheet
+        // 5. Mindful In-App Usage Timer Sheet
+        if (uiState.pendingTimerApp != null) {
+            MindfulAppTimerSheet(
+                app = uiState.pendingTimerApp!!,
+                settings = settings,
+                onLaunchWithTimer = { minutes ->
+                    viewModel.launchWithAppTimer(uiState.pendingTimerApp!!, minutes)
+                },
+                onLaunchWithoutTimer = {
+                    viewModel.launchWithoutAppTimer(uiState.pendingTimerApp!!)
+                },
+                onDismissRequest = { viewModel.dismissTimerSheet() }
+            )
+        }
+
+        // 6. Daily Mindful Screen Time & Unlock Sheet
+        if (uiState.isUsageSheetActive) {
+            DailyMindfulUsageSheet(
+                usageSummary = uiState.dailyUsageSummary,
+                settings = settings,
+                onDismissRequest = { viewModel.setUsageSheetActive(false) }
+            )
+        }
+
+        // 7. App Context Options Sheet
         if (uiState.selectedAppForMenu != null) {
             AppContextMenuSheet(
                 app = uiState.selectedAppForMenu!!,
@@ -260,5 +323,23 @@ fun LauncherHomeScreen(
                 onOpenYouTubeGate = { viewModel.setYouTubeGateActive(true) }
             )
         }
+    }
+}
+
+private fun expandStatusBar(context: Context) {
+    try {
+        @SuppressLint("WrongConstant")
+        val service = context.getSystemService("statusbar")
+        val statusbarManager = Class.forName("android.app.StatusBarManager")
+        val expand = statusbarManager.getMethod("expandNotificationsPanel")
+        expand.invoke(service)
+    } catch (_: Exception) {
+        try {
+            @SuppressLint("WrongConstant")
+            val service = context.getSystemService("statusbar")
+            val statusbarManager = Class.forName("android.app.StatusBarManager")
+            val expand = statusbarManager.getMethod("expand")
+            expand.invoke(service)
+        } catch (_: Exception) {}
     }
 }

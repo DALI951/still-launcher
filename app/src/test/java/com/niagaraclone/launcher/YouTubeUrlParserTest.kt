@@ -1,10 +1,13 @@
 package com.niagaraclone.launcher
 
+import com.niagaraclone.launcher.ui.components.YouTubeParseResult
 import com.niagaraclone.launcher.ui.components.parseTimestampSeconds
+import com.niagaraclone.launcher.ui.components.parseYouTubeInput
 import com.niagaraclone.launcher.ui.components.parseYouTubeUrl
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class YouTubeUrlParserTest {
@@ -39,6 +42,85 @@ class YouTubeUrlParserTest {
         assertNotNull(result)
         assertEquals("dQw4w9WgXcQ", result?.first)
         assertEquals(90, result?.second)
+    }
+
+    @Test
+    fun testChatGPTMarkdownLink() {
+        // [Title](url)
+        val result1 = parseYouTubeUrl("[Rick Astley - Never Gonna Give You Up](https://www.youtube.com/watch?v=dQw4w9WgXcQ)")
+        assertNotNull(result1)
+        assertEquals("dQw4w9WgXcQ", result1?.first)
+
+        val result2 = parseYouTubeUrl("[Check this out](https://youtu.be/dQw4w9WgXcQ?si=abcdef123)")
+        assertNotNull(result2)
+        assertEquals("dQw4w9WgXcQ", result2?.first)
+    }
+
+    @Test
+    fun testChatGPTBacktickLink() {
+        val result1 = parseYouTubeUrl("`https://www.youtube.com/watch?v=dQw4w9WgXcQ`")
+        assertNotNull(result1)
+        assertEquals("dQw4w9WgXcQ", result1?.first)
+
+        val result2 = parseYouTubeUrl("`https://youtu.be/dQw4w9WgXcQ`")
+        assertNotNull(result2)
+        assertEquals("dQw4w9WgXcQ", result2?.first)
+    }
+
+    @Test
+    fun testTrailingPunctuationFromChat() {
+        // Trailing dot from a sentence
+        val resDot = parseYouTubeUrl("Check out this video: https://youtu.be/dQw4w9WgXcQ.")
+        assertEquals("dQw4w9WgXcQ", resDot?.first)
+
+        // Trailing comma
+        val resComma = parseYouTubeUrl("https://www.youtube.com/watch?v=dQw4w9WgXcQ,")
+        assertEquals("dQw4w9WgXcQ", resComma?.first)
+
+        // Parentheses
+        val resParen = parseYouTubeUrl("(https://www.youtube.com/watch?v=dQw4w9WgXcQ)")
+        assertEquals("dQw4w9WgXcQ", resParen?.first)
+
+        // Quotes
+        val resQuotes = parseYouTubeUrl("\"https://youtu.be/dQw4w9WgXcQ\"")
+        assertEquals("dQw4w9WgXcQ", resQuotes?.first)
+
+        // Exclamation mark
+        val resExcl = parseYouTubeUrl("https://youtu.be/dQw4w9WgXcQ!")
+        assertEquals("dQw4w9WgXcQ", resExcl?.first)
+    }
+
+    @Test
+    fun testIframeHtmlEmbed() {
+        val html = "<iframe width=\"560\" height=\"315\" src=\"https://www.youtube.com/embed/dQw4w9WgXcQ\" frameborder=\"0\"></iframe>"
+        val result = parseYouTubeUrl(html)
+        assertNotNull(result)
+        assertEquals("dQw4w9WgXcQ", result?.first)
+    }
+
+    @Test
+    fun testRedirectUrls() {
+        // Google redirect
+        val google = "https://www.google.com/url?q=https://www.youtube.com/watch%3Fv%3DdQw4w9WgXcQ&sa=U"
+        val resGoogle = parseYouTubeUrl(google)
+        assertEquals("dQw4w9WgXcQ", resGoogle?.first)
+
+        // ChatGPT redirect
+        val chatgpt = "https://chatgpt.com/redirect?url=https%3A%2F%2Fyoutu.be%2FdQw4w9WgXcQ"
+        val resChatGPT = parseYouTubeUrl(chatgpt)
+        assertEquals("dQw4w9WgXcQ", resChatGPT?.first)
+
+        // Reddit redirect
+        val reddit = "https://out.reddit.com/url?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DdQw4w9WgXcQ"
+        val resReddit = parseYouTubeUrl(reddit)
+        assertEquals("dQw4w9WgXcQ", resReddit?.first)
+    }
+
+    @Test
+    fun testPlaylistWatchUrl() {
+        val result = parseYouTubeUrl("https://www.youtube.com/watch?list=PL123456&v=dQw4w9WgXcQ&index=1")
+        assertNotNull(result)
+        assertEquals("dQw4w9WgXcQ", result?.first)
     }
 
     @Test
@@ -98,10 +180,27 @@ class YouTubeUrlParserTest {
     }
 
     @Test
-    fun testTextSharedFromApps() {
-        val result = parseYouTubeUrl("Look at this great video: https://youtu.be/dQw4w9WgXcQ?si=share123 via YouTube")
+    fun testMultilineChatText() {
+        val multiLine = """
+            Here is the recommendation from ChatGPT:
+            Title: Never Gonna Give You Up
+            Link: https://youtu.be/dQw4w9WgXcQ?si=share123
+            Enjoy watching!
+        """.trimIndent()
+        val result = parseYouTubeUrl(multiLine)
         assertNotNull(result)
         assertEquals("dQw4w9WgXcQ", result?.first)
+    }
+
+    @Test
+    fun testSearchQueryInput() {
+        val queryResult = parseYouTubeInput("Huberman Lab Sleep Protocol")
+        assertTrue(queryResult is YouTubeParseResult.SearchQuery)
+        assertEquals("Huberman Lab Sleep Protocol", (queryResult as YouTubeParseResult.SearchQuery).query)
+
+        val searchUrlResult = parseYouTubeInput("https://www.youtube.com/results?search_query=focus+lofi+beats")
+        assertTrue(searchUrlResult is YouTubeParseResult.SearchQuery)
+        assertEquals("focus lofi beats", (searchUrlResult as YouTubeParseResult.SearchQuery).query)
     }
 
     @Test

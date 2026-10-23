@@ -4,12 +4,16 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.niagaraclone.launcher.data.AppRepository
+import com.niagaraclone.launcher.data.AppTimerManager
+import com.niagaraclone.launcher.data.ActiveTimerSession
 import com.niagaraclone.launcher.data.AppUpdateRepository
+import com.niagaraclone.launcher.data.DailyUsageSummary
 import com.niagaraclone.launcher.data.InstallResult
 import com.niagaraclone.launcher.data.LauncherPermissionsState
 import com.niagaraclone.launcher.data.PermissionsManager
 import com.niagaraclone.launcher.data.PreferencesRepository
 import com.niagaraclone.launcher.data.ReleaseInfo
+import com.niagaraclone.launcher.data.ScreenTimeTracker
 import com.niagaraclone.launcher.data.SystemStatusProvider
 import com.niagaraclone.launcher.data.UpdateDownloadState
 import com.niagaraclone.launcher.data.model.AppInfo
@@ -64,6 +68,10 @@ data class LauncherUiState(
     val directPlayStartSeconds: Int = 0,
     val pendingFrictionApp: AppInfo? = null,
     val pendingFrictionType: FrictionType? = null,
+    val pendingTimerApp: AppInfo? = null,
+    val isUsageSheetActive: Boolean = false,
+    val dailyUsageSummary: DailyUsageSummary = DailyUsageSummary(),
+    val activeTimerSession: ActiveTimerSession? = null,
     val selectedAppForMenu: AppInfo? = null,
     val youtubeHistory: List<YouTubeHistoryItem> = emptyList(),
     val updateState: UpdateUiState = UpdateUiState.Idle,
@@ -96,8 +104,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val directPlayStartSeconds: Int = 0,
         val pendingFrictionApp: AppInfo? = null,
         val pendingFrictionType: FrictionType? = null,
+        val pendingTimerApp: AppInfo? = null,
+        val isUsageSheetActive: Boolean = false,
         val selectedAppForMenu: AppInfo? = null
     )
+
+    val timerManager = AppTimerManager.getInstance(application)
+    val screenTimeTracker = ScreenTimeTracker.getInstance(application)
+    private val _dailyUsageSummary = MutableStateFlow(screenTimeTracker.getDailyUsageSummary())
 
     private val _transientState = MutableStateFlow(TransientState())
 
@@ -134,13 +148,23 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         AppsPreferencesState(installed, favs, hidden, seeded, rules, history)
     }
 
+    private data class TransientTuple(
+        val transient: TransientState,
+        val update: UpdateUiState,
+        val perms: LauncherPermissionsState,
+        val usage: DailyUsageSummary,
+        val activeTimer: ActiveTimerSession?
+    )
+
     // Combine UI transient flows
     private val uiTransientFlow = combine(
         _transientState,
         _updateState,
-        _permissionsState
-    ) { transient, update, perms ->
-        Triple(transient, update, perms)
+        _permissionsState,
+        _dailyUsageSummary,
+        timerManager.activeSession
+    ) { transient, update, perms, usage, activeTimer ->
+        TransientTuple(transient, update, perms, usage, activeTimer)
     }
 
     // Combine top-level flows
@@ -149,7 +173,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         systemStatusProvider.systemStatusFlow,
         preferencesRepository.settingsFlow,
         uiTransientFlow
-    ) { data, systemStatus, settings, (transient, update, perms) ->
+    ) { data, systemStatus, settings, tuple ->
 
         // Seed initial default favorites safely guarded against race conditions
         if (!data.isInitialSeeded && data.installedApps.isNotEmpty() && hasTriggeredSeed.compareAndSet(false, true)) {
@@ -180,7 +204,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val orderedFavorites = data.favoriteKeys.mapNotNull { favoriteMap[it] }
 
         // Search filtering: Prefix matches first, then contains matches
-        val query = transient.searchQuery.trim()
+        val query = tuple.transient.searchQuery.trim()
         val filtered = if (query.isEmpty()) {
             visibleApps
         } else {
@@ -204,19 +228,23 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             hiddenApps = hiddenApps,
             systemStatus = systemStatus,
             settings = settings,
-            searchQuery = transient.searchQuery,
+            searchQuery = tuple.transient.searchQuery,
             filteredApps = filtered,
-            isSearchActive = transient.isSearchActive,
-            isSettingsSheetActive = transient.isSettingsSheetActive,
-            isYouTubeGateActive = transient.isYouTubeGateActive,
-            directPlayVideoId = transient.directPlayVideoId,
-            directPlayStartSeconds = transient.directPlayStartSeconds,
-            pendingFrictionApp = transient.pendingFrictionApp,
-            pendingFrictionType = transient.pendingFrictionType,
-            selectedAppForMenu = transient.selectedAppForMenu,
+            isSearchActive = tuple.transient.isSearchActive,
+            isSettingsSheetActive = tuple.transient.isSettingsSheetActive,
+            isYouTubeGateActive = tuple.transient.isYouTubeGateActive,
+            directPlayVideoId = tuple.transient.directPlayVideoId,
+            directPlayStartSeconds = tuple.transient.directPlayStartSeconds,
+            pendingFrictionApp = tuple.transient.pendingFrictionApp,
+            pendingFrictionType = tuple.transient.pendingFrictionType,
+            pendingTimerApp = tuple.transient.pendingTimerApp,
+            isUsageSheetActive = tuple.transient.isUsageSheetActive,
+            dailyUsageSummary = tuple.usage,
+            activeTimerSession = tuple.activeTimer,
+            selectedAppForMenu = tuple.transient.selectedAppForMenu,
             youtubeHistory = data.youtubeHistory,
-            updateState = update,
-            permissionsState = perms
+            updateState = tuple.update,
+            permissionsState = tuple.perms
         )
     }.stateIn(
         scope = viewModelScope,
@@ -315,6 +343,28 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             return
         }
 
+        // 6. Active Cooldown Check
+        if (timerManager.isAppInCooldown(app.packageName)) {
+            val remainingSecs = timerManager.getRemainingCooldownSeconds(app.packageName)
+            _transientState.update {
+                it.copy(
+                    pendingFrictionApp = app,
+                    pendingFrictionType = FrictionType.BreathingDelay(remainingSecs.coerceAtLeast(3))
+                )
+            }
+            return
+        }
+
+        // 7. Mindful In-App Usage Timer selection prompt
+        if (settings.appUsageTimersEnabled && settings.askTimerOnAppLaunch && !app.isEssentialUtility) {
+            _transientState.update {
+                it.copy(
+                    pendingTimerApp = app
+                )
+            }
+            return
+        }
+
         // Default: Immediate standard launch
         launchApp(app)
     }
@@ -396,6 +446,38 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun launchWithAppTimer(app: AppInfo, minutes: Int) {
+        _transientState.update { it.copy(pendingTimerApp = null) }
+        timerManager.startTimer(app.packageName, app.label, minutes)
+        launchApp(app)
+    }
+
+    fun launchWithoutAppTimer(app: AppInfo) {
+        _transientState.update { it.copy(pendingTimerApp = null) }
+        launchApp(app)
+    }
+
+    fun dismissTimerSheet() {
+        _transientState.update { it.copy(pendingTimerApp = null) }
+    }
+
+    fun setUsageSheetActive(active: Boolean) {
+        _transientState.update { it.copy(isUsageSheetActive = active) }
+        if (active) {
+            refreshDailyUsage()
+        }
+    }
+
+    fun refreshDailyUsage() {
+        _dailyUsageSummary.value = screenTimeTracker.getDailyUsageSummary()
+    }
+
+    fun updateDailyIntention(text: String) {
+        viewModelScope.launch {
+            preferencesRepository.updateSettings { s -> s.copy(dailyIntentionText = text.trim()) }
+        }
+    }
+
     fun setSettingsSheetActive(active: Boolean) {
         _transientState.update { it.copy(isSettingsSheetActive = active) }
     }
@@ -410,10 +492,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 directPlayStartSeconds = 0,
                 pendingFrictionApp = null,
                 pendingFrictionType = null,
+                pendingTimerApp = null,
+                isUsageSheetActive = false,
                 selectedAppForMenu = null,
                 searchQuery = ""
             )
         }
+        refreshDailyUsage()
     }
 
     fun onSearchQueryChange(newQuery: String) {

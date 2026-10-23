@@ -18,11 +18,19 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BatteryChargingFull
 import androidx.compose.material.icons.outlined.BatteryFull
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,6 +41,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.niagaraclone.launcher.data.DailyUsageSummary
 import com.niagaraclone.launcher.data.model.FocusProfile
 import com.niagaraclone.launcher.data.model.LauncherSettings
 import com.niagaraclone.launcher.data.model.SystemStatus
@@ -48,12 +57,20 @@ import java.util.Locale
 fun AtAGlanceHeader(
     systemStatus: SystemStatus,
     settings: LauncherSettings = LauncherSettings(),
+    dailyUsageSummary: DailyUsageSummary = DailyUsageSummary(),
+    onOpenUsageSheet: () -> Unit = {},
+    onEditIntention: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val textColor = Color(settings.themeMode.textHex)
     val textSecondaryColor = Color(settings.themeMode.textSecondaryHex)
     val accentLight = Color(settings.activeAccentLightHex)
+
+    var showIntentionDialog by remember { mutableStateOf(false) }
+    var intentionInput by remember(settings.dailyIntentionText) {
+        mutableStateOf(settings.dailyIntentionText)
+    }
 
     val formattedTime = remember(systemStatus.timeText, settings.clock24Hour) {
         try {
@@ -117,7 +134,54 @@ fun AtAGlanceHeader(
             )
         }
 
-        // 3. Optional Small Battery Indicator & Active Focus Pill
+        // 3. Screen Time & Device Unlocks (Minimalist Phone style)
+        if (settings.showScreenTimeOnHome) {
+            val usageText = if (dailyUsageSummary.hasUsageAccess) {
+                val h = dailyUsageSummary.totalTimeMinutes / 60
+                val m = dailyUsageSummary.totalTimeMinutes % 60
+                val formatted = if (h > 0) "${h}h ${m}m" else "${m}m"
+                "$formatted phone time • ${dailyUsageSummary.unlockCount} unlocks"
+            } else {
+                "${dailyUsageSummary.unlockCount} phone unlocks today"
+            }
+            Text(
+                text = usageText,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                ),
+                color = textSecondaryColor.copy(alpha = 0.85f),
+                modifier = Modifier
+                    .padding(top = 4.dp)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onOpenUsageSheet
+                    )
+            )
+        }
+
+        // 4. Daily Mindful Intention (tap to set intention)
+        if (settings.showDailyIntention) {
+            val intentionDisplay = settings.dailyIntentionText.ifBlank { "Stay present and intentional" }
+            Text(
+                text = "✦ $intentionDisplay",
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Normal
+                ),
+                color = accentLight.copy(alpha = 0.9f),
+                modifier = Modifier
+                    .padding(top = 4.dp)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { showIntentionDialog = true }
+                    )
+            )
+        }
+
+        // 5. Optional Small Battery Indicator & Active Focus Pill
         Row(
             modifier = Modifier.padding(top = 6.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -159,6 +223,49 @@ fun AtAGlanceHeader(
                 )
             }
         }
+    }
+
+    if (showIntentionDialog) {
+        AlertDialog(
+            onDismissRequest = { showIntentionDialog = false },
+            title = {
+                Text("Today's Intention", color = Color.White, fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "What is your main focus today? Keep it calm and intentional.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = textSecondaryColor
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = intentionInput,
+                        onValueChange = { intentionInput = it },
+                        placeholder = { Text("e.g. Finish writing, walk outside") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onEditIntention(intentionInput)
+                        showIntentionDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = accentLight)
+                ) {
+                    Text("Save", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showIntentionDialog = false }) {
+                    Text("Cancel", color = textSecondaryColor)
+                }
+            },
+            containerColor = Color(0xFF141820)
+        )
     }
 }
 

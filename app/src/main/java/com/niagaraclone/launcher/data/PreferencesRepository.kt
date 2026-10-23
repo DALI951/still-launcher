@@ -57,6 +57,17 @@ class PreferencesRepository(private val context: Context) {
         val SETTING_SLEEP_START_HOUR = intPreferencesKey("setting_sleep_start_hour")
         val SETTING_SLEEP_END_HOUR = intPreferencesKey("setting_sleep_end_hour")
 
+        // 4. Mindful App Usage Timers
+        val SETTING_APP_USAGE_TIMERS_ENABLED = booleanPreferencesKey("setting_app_usage_timers_enabled")
+        val SETTING_ASK_TIMER_ON_LAUNCH = booleanPreferencesKey("setting_ask_timer_on_launch")
+        val SETTING_DEFAULT_TIMER_MINUTES = intPreferencesKey("setting_default_timer_minutes")
+
+        // 5. Daily Screen Time & Intentions
+        val SETTING_SHOW_SCREEN_TIME_ON_HOME = booleanPreferencesKey("setting_show_screen_time_on_home")
+        val SETTING_DAILY_SCREEN_TIME_GOAL_MINUTES = intPreferencesKey("setting_daily_screen_time_goal_minutes")
+        val SETTING_SHOW_DAILY_INTENTION = booleanPreferencesKey("setting_show_daily_intention")
+        val SETTING_DAILY_INTENTION_TEXT = stringPreferencesKey("setting_daily_intention_text")
+
         // Serialized per-app launch rules: "pkg/comp=RULE_NAME:::pkg2/comp2=RULE_NAME"
         val APP_LAUNCH_RULES = stringPreferencesKey("app_launch_rules")
     }
@@ -131,6 +142,15 @@ class PreferencesRepository(private val context: Context) {
             val sleepStart = prefs[PreferencesKeys.SETTING_SLEEP_START_HOUR] ?: 22
             val sleepEnd = prefs[PreferencesKeys.SETTING_SLEEP_END_HOUR] ?: 7
 
+            val appUsageTimersEnabled = prefs[PreferencesKeys.SETTING_APP_USAGE_TIMERS_ENABLED] ?: true
+            val askTimerOnLaunch = prefs[PreferencesKeys.SETTING_ASK_TIMER_ON_LAUNCH] ?: true
+            val defaultTimerMinutes = prefs[PreferencesKeys.SETTING_DEFAULT_TIMER_MINUTES] ?: 5
+
+            val showScreenTimeOnHome = prefs[PreferencesKeys.SETTING_SHOW_SCREEN_TIME_ON_HOME] ?: true
+            val dailyScreenTimeGoal = prefs[PreferencesKeys.SETTING_DAILY_SCREEN_TIME_GOAL_MINUTES] ?: 120
+            val showDailyIntention = prefs[PreferencesKeys.SETTING_SHOW_DAILY_INTENTION] ?: true
+            val dailyIntentionText = prefs[PreferencesKeys.SETTING_DAILY_INTENTION_TEXT] ?: ""
+
             LauncherSettings(
                 themeMode = themeMode,
                 accent = accent,
@@ -148,7 +168,14 @@ class PreferencesRepository(private val context: Context) {
                 studyStartHour = studyStart,
                 studyEndHour = studyEnd,
                 sleepStartHour = sleepStart,
-                sleepEndHour = sleepEnd
+                sleepEndHour = sleepEnd,
+                appUsageTimersEnabled = appUsageTimersEnabled,
+                askTimerOnAppLaunch = askTimerOnLaunch,
+                defaultTimerMinutes = defaultTimerMinutes,
+                showScreenTimeOnHome = showScreenTimeOnHome,
+                dailyScreenTimeGoalMinutes = dailyScreenTimeGoal,
+                showDailyIntention = showDailyIntention,
+                dailyIntentionText = dailyIntentionText
             )
         }
 
@@ -223,6 +250,15 @@ class PreferencesRepository(private val context: Context) {
             prefs[PreferencesKeys.SETTING_STUDY_END_HOUR] = updated.studyEndHour
             prefs[PreferencesKeys.SETTING_SLEEP_START_HOUR] = updated.sleepStartHour
             prefs[PreferencesKeys.SETTING_SLEEP_END_HOUR] = updated.sleepEndHour
+
+            prefs[PreferencesKeys.SETTING_APP_USAGE_TIMERS_ENABLED] = updated.appUsageTimersEnabled
+            prefs[PreferencesKeys.SETTING_ASK_TIMER_ON_LAUNCH] = updated.askTimerOnAppLaunch
+            prefs[PreferencesKeys.SETTING_DEFAULT_TIMER_MINUTES] = updated.defaultTimerMinutes
+
+            prefs[PreferencesKeys.SETTING_SHOW_SCREEN_TIME_ON_HOME] = updated.showScreenTimeOnHome
+            prefs[PreferencesKeys.SETTING_DAILY_SCREEN_TIME_GOAL_MINUTES] = updated.dailyScreenTimeGoalMinutes
+            prefs[PreferencesKeys.SETTING_SHOW_DAILY_INTENTION] = updated.showDailyIntention
+            prefs[PreferencesKeys.SETTING_DAILY_INTENTION_TEXT] = updated.dailyIntentionText
         }
     }
 

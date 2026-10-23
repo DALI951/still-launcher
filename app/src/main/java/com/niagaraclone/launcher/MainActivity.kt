@@ -132,5 +132,6 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         // Refresh permissions and resume pending APK installation if permission was granted
         viewModel.refreshPermissionsAndPendingInstall()
+        viewModel.refreshDailyUsage()
     }
 }
